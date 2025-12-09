@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { Plus, Snowflake, Layers, ChefHat, Search, ArrowLeft, Package, ClipboardList, RefreshCw, ShoppingCart, Heart, Coffee, Utensils, CheckSquare, List, Users, AlertTriangle, Sparkles } from 'lucide-react';
+import { Plus, Snowflake, Layers, ChefHat, Search, ArrowLeft, Package, ClipboardList, RefreshCw, ShoppingCart, Heart, Coffee, Utensils, CheckSquare, List, Users, AlertTriangle, Sparkles, Share2, Download, X } from 'lucide-react';
 import { Ingredient, StorageType, Recipe, Category } from './types';
 import { DEFAULT_BASIC_SEASONINGS, CATEGORY_LABELS, CATEGORY_COLORS } from './constants';
 import { IngredientItem } from './components/IngredientItem';
@@ -47,6 +46,11 @@ export default function App() {
   const [showShoppingList, setShowShoppingList] = useState(false);
   const [selectedShoppingItems, setSelectedShoppingItems] = useState<Set<string>>(new Set());
 
+  // PWA Install State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showIosInstallModal, setShowIosInstallModal] = useState(false);
+  const [isInstallable, setIsInstallable] = useState(false);
+
   // Load from IndexedDB and LocalStorage on mount
   useEffect(() => {
     const loadData = async () => {
@@ -80,6 +84,28 @@ export default function App() {
     };
 
     loadData();
+
+    // PWA Install Prompt Listener
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    // Check if iOS (to show manual install instructions)
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    // Check if already in standalone mode (installed)
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
+    
+    if (isIOS && !isStandalone) {
+        setIsInstallable(true); // Manually handle iOS
+    }
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
   }, []);
 
   const handleSaveIngredient = async (data: (Omit<Ingredient, 'id'> & { id?: string }) | (Omit<Ingredient, 'id'> & { id?: string })[]) => {
@@ -454,6 +480,31 @@ export default function App() {
       }
   };
 
+  // --- Share & Install Handlers ---
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      alert('주소가 복사되었습니다! 카톡으로 친구에게 공유해보세요.');
+    } catch (err) {
+      alert('주소 복사에 실패했습니다.');
+    }
+  };
+
+  const handleInstallClick = async () => {
+    if (deferredPrompt) {
+      // Android / Desktop Chrome
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setDeferredPrompt(null);
+        setIsInstallable(false);
+      }
+    } else {
+      // iOS or unknown
+      setShowIosInstallModal(true);
+    }
+  };
+
   if (view === 'TOTAL') {
     return (
       <TotalListView 
@@ -493,6 +544,22 @@ export default function App() {
         <div className="flex gap-2 bg-slate-100 p-1 rounded-full">
           {view === 'INVENTORY' && (
             <div className="flex gap-1">
+                {isInstallable && (
+                    <button 
+                      onClick={handleInstallClick}
+                      className="bg-indigo-600 p-2 rounded-full text-white shadow-sm hover:bg-indigo-700 transition-colors animate-pulse"
+                      title="앱 설치(다운로드)"
+                    >
+                      <Download size={20} />
+                    </button>
+                )}
+                <button 
+                  onClick={handleShare}
+                  className="bg-white p-2 rounded-full text-slate-600 shadow-sm hover:text-indigo-600 transition-colors"
+                  title="주소 공유하기"
+                >
+                  <Share2 size={20} />
+                </button>
                 <button 
                   onClick={() => setIsSyncModalOpen(true)}
                   className="bg-white p-2 rounded-full text-slate-600 shadow-sm hover:text-green-600 transition-colors"
@@ -906,6 +973,32 @@ export default function App() {
         )}
 
       </main>
+
+      {/* iOS Install Guide Modal */}
+      {showIosInstallModal && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowIosInstallModal(false)}>
+           <div className="bg-white w-full max-w-md p-6 rounded-t-2xl animate-bounce-in" onClick={(e) => e.stopPropagation()}>
+               <div className="flex justify-between items-start mb-4">
+                   <h3 className="text-xl font-bold text-slate-900">앱 설치 방법 (아이폰)</h3>
+                   <button onClick={() => setShowIosInstallModal(false)} className="p-1 bg-slate-100 rounded-full"><X size={20}/></button>
+               </div>
+               <div className="space-y-4 text-slate-600 text-sm">
+                   <p>아이폰은 보안상 수동으로 설치해야 합니다.</p>
+                   <div className="flex items-center gap-3">
+                       <span className="bg-slate-100 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs">1</span>
+                       <span>사파리(Safari) 브라우저 하단 <strong>공유 버튼</strong>을 누르세요.</span>
+                   </div>
+                   <div className="flex items-center gap-3">
+                       <span className="bg-slate-100 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs">2</span>
+                       <span>메뉴를 내려서 <strong>'홈 화면에 추가'</strong>를 선택하세요.</span>
+                   </div>
+                   <div className="mt-4 p-3 bg-indigo-50 rounded-xl text-indigo-700 font-bold text-center">
+                       이제 앱처럼 편하게 사용하세요! 🎉
+                   </div>
+               </div>
+           </div>
+        </div>
+      )}
 
       <AddIngredientModal 
         isOpen={isAddModalOpen} 
