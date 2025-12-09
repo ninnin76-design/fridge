@@ -110,6 +110,15 @@ export const TotalListView: React.FC<Props> = ({ ingredients, basicSeasonings, o
     }
   };
 
+  // Helper to get item style based on storage
+  const getItemStyle = (type: StorageType) => {
+    switch(type) {
+      case StorageType.FRIDGE: return "bg-indigo-50 text-indigo-800 border-indigo-100";
+      case StorageType.FREEZER: return "bg-blue-50 text-blue-800 border-blue-100";
+      case StorageType.PANTRY: return "bg-amber-50 text-amber-800 border-amber-100";
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-white overflow-auto flex flex-col">
       
@@ -170,33 +179,6 @@ export const TotalListView: React.FC<Props> = ({ ingredients, basicSeasonings, o
              </div>
           ) : (
             <>
-              {/* Basic Seasonings Section */}
-              {hasSeasonings && (
-                <div className="break-inside-avoid border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-                   <div className="px-4 py-3 border-b flex justify-between items-center bg-yellow-100 text-yellow-800 border-yellow-200 bg-opacity-50">
-                    <h2 className="font-black text-lg flex items-center gap-2">
-                      <SaltShakerIcon size={18} />
-                      기본 재료/양념
-                      <span className="text-xs font-normal opacity-80 bg-white/50 px-2 py-0.5 rounded-full">
-                        {basicSeasonings.length}
-                      </span>
-                    </h2>
-                  </div>
-                  <div className="p-6 bg-white">
-                    <div className="flex flex-wrap gap-2">
-                        {basicSeasonings.map((item, idx) => (
-                            <span key={idx} className="px-3 py-1.5 bg-yellow-50 text-yellow-800 rounded-lg text-sm font-bold border border-yellow-100">
-                                {item}
-                            </span>
-                        ))}
-                    </div>
-                    <p className="mt-4 text-xs text-slate-400">
-                        * 이곳에 있는 재료들은 항상 구비되어 있다고 가정합니다.
-                    </p>
-                  </div>
-                </div>
-              )}
-
               {/* Main Ingredients Categories */}
               {activeCategories.map(cat => {
                 const storageGroups = groupedData[cat];
@@ -220,7 +202,7 @@ export const TotalListView: React.FC<Props> = ({ ingredients, basicSeasonings, o
                       {[StorageType.FRIDGE, StorageType.FREEZER, StorageType.PANTRY].map(stType => {
                          const items = storageGroups[stType];
                          return (
-                           <div key={stType} className="p-4 bg-white min-h-[120px]">
+                           <div key={stType} className="p-4 bg-white min-h-[100px]">
                              <div className="flex items-center gap-2 mb-3">
                                <span className={`px-2 py-1 rounded text-xs font-bold flex items-center gap-1 ${getStorageColor(stType as StorageType)}`}>
                                  {getStorageIcon(stType as StorageType)}
@@ -231,13 +213,16 @@ export const TotalListView: React.FC<Props> = ({ ingredients, basicSeasonings, o
                              {items.length === 0 ? (
                                <div className="text-slate-300 text-xs pl-1 font-medium">-</div>
                              ) : (
-                               <ul className="space-y-2">
+                               <div className="flex flex-wrap gap-2">
                                  {items.map(item => (
-                                   <li key={item.id} className="flex justify-between items-start text-sm group">
-                                     <span className="text-slate-700 font-bold break-words pr-2">{item.name}</span>
-                                   </li>
+                                   <span 
+                                     key={item.id} 
+                                     className={`px-2.5 py-1 rounded-md text-sm font-bold border ${getItemStyle(stType as StorageType)}`}
+                                   >
+                                     {item.name}
+                                   </span>
                                  ))}
-                               </ul>
+                               </div>
                              )}
                            </div>
                          );
@@ -246,6 +231,33 @@ export const TotalListView: React.FC<Props> = ({ ingredients, basicSeasonings, o
                   </div>
                 );
               })}
+
+              {/* Basic Seasonings Section (Moved to Bottom) */}
+              {hasSeasonings && (
+                <div className="break-inside-avoid border border-slate-200 rounded-xl overflow-hidden shadow-sm mt-8">
+                   <div className="px-4 py-3 border-b flex justify-between items-center bg-yellow-100 text-yellow-800 border-yellow-200 bg-opacity-50">
+                    <h2 className="font-black text-lg flex items-center gap-2">
+                      <SaltShakerIcon size={18} />
+                      기본 재료/양념
+                      <span className="text-xs font-normal opacity-80 bg-white/50 px-2 py-0.5 rounded-full">
+                        {basicSeasonings.length}
+                      </span>
+                    </h2>
+                  </div>
+                  <div className="p-6 bg-white">
+                    <div className="flex flex-wrap gap-2">
+                        {basicSeasonings.map((item, idx) => (
+                            <span key={idx} className="px-3 py-1.5 bg-yellow-50 text-yellow-800 rounded-lg text-sm font-bold border border-yellow-100">
+                                {item}
+                            </span>
+                        ))}
+                    </div>
+                    <p className="mt-4 text-xs text-slate-400">
+                        * 이곳에 있는 재료들은 항상 구비되어 있다고 가정합니다.
+                    </p>
+                  </div>
+                </div>
+              )}
             </>
           )}
         </div>

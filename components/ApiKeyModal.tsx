@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Check, Key, Trash2, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import { X, Check, Key, Trash2, AlertCircle, Eye, EyeOff, ExternalLink } from 'lucide-react';
 import { CustomKeyIcon } from './CustomKeyIcon';
 
 interface Props {
@@ -59,11 +59,19 @@ export const ApiKeyModal: React.FC<Props> = ({ isOpen, onClose, onSave, currentK
 
         <div className="p-6">
           <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl text-sm text-indigo-800 leading-relaxed mb-6">
-            <p>
+            <p className="mb-3">
                 Google AI Studio에서 발급받은 <strong>Gemini API 키</strong>를 입력해주세요.
                 <br/>
                 입력한 키는 브라우저에만 저장됩니다.
             </p>
+            <a 
+              href="https://aistudio.google.com/api-keys"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
+            >
+              👉 키 발급 페이지 바로가기 <ExternalLink size={12} />
+            </a>
           </div>
 
           <div className="mb-2 relative">

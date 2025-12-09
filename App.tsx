@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Plus, Snowflake, Layers, ChefHat, Search, ArrowLeft, Package, ClipboardList, RefreshCw, ShoppingCart, Heart, Coffee, Utensils, CheckSquare, List, Users, AlertTriangle, Sparkles, Share2, Download, X } from 'lucide-react';
 import { Ingredient, StorageType, Recipe, Category } from './types';
@@ -535,13 +536,17 @@ export default function App() {
             <ArrowLeft />
           </button>
         ) : (
-          <div>
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">엄마의 냉장고</h1>
-            <p className="text-sm text-slate-500 font-medium">오늘 뭐 먹지 고민 해결!</p>
+          <div className="flex flex-col min-w-0 mr-4">
+            <h1 className="text-2xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-indigo-800 whitespace-nowrap leading-none mb-1">
+              엄마의 냉장고
+            </h1>
+            <p className="text-xs font-bold text-slate-500 tracking-wide whitespace-nowrap opacity-75">
+              오늘 뭐 먹지 고민 해결! 🥘
+            </p>
           </div>
         )}
         
-        <div className="flex gap-2 bg-slate-100 p-1 rounded-full">
+        <div className="flex gap-2 bg-slate-100 p-1 rounded-full shrink-0">
           {view === 'INVENTORY' && (
             <div className="flex gap-1">
                 {isInstallable && (
@@ -550,7 +555,7 @@ export default function App() {
                       className="bg-indigo-600 p-2 rounded-full text-white shadow-sm hover:bg-indigo-700 transition-colors animate-pulse"
                       title="앱 설치(다운로드)"
                     >
-                      <Download size={20} />
+                      <Download size={18} />
                     </button>
                 )}
                 <button 
@@ -558,28 +563,28 @@ export default function App() {
                   className="bg-white p-2 rounded-full text-slate-600 shadow-sm hover:text-indigo-600 transition-colors"
                   title="주소 공유하기"
                 >
-                  <Share2 size={20} />
+                  <Share2 size={18} />
                 </button>
                 <button 
                   onClick={() => setIsSyncModalOpen(true)}
                   className="bg-white p-2 rounded-full text-slate-600 shadow-sm hover:text-green-600 transition-colors"
                   title="데이터 동기화 (아이들과 공유)"
                 >
-                  <Users size={20} />
+                  <Users size={18} />
                 </button>
                 <button 
                   onClick={() => setView('SEASONINGS')}
                   className="bg-white p-2 rounded-full text-slate-600 shadow-sm hover:text-amber-600 transition-colors"
                   title="기본 양념/소스 관리"
                 >
-                  <SaltShakerIcon size={20} />
+                  <SaltShakerIcon size={18} />
                 </button>
                 <button 
                   onClick={() => setView('TOTAL')}
                   className="bg-white p-2 rounded-full text-slate-600 shadow-sm hover:text-slate-900 transition-colors"
                   title="전체 재고 확인"
                 >
-                  <ClipboardList size={20} />
+                  <ClipboardList size={18} />
                 </button>
             </div>
           )}
@@ -588,7 +593,7 @@ export default function App() {
         {view === 'INVENTORY' && (
             <button 
             onClick={() => setView('SAVED_RECIPES')}
-            className="bg-pink-50 p-2.5 rounded-full text-pink-500 hover:bg-pink-100 transition-colors relative ml-2"
+            className="bg-pink-50 p-2.5 rounded-full text-pink-500 hover:bg-pink-100 transition-colors relative ml-2 shrink-0"
             title="내가 찜한 레시피"
             >
             <Heart size={20} fill={savedRecipes.length > 0 ? "currentColor" : "none"} />
@@ -614,32 +619,30 @@ export default function App() {
         {view === 'INVENTORY' && (
           <>
             <div className="mb-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden app-stats">
-               <button 
-                  onClick={() => setIsApiKeyModalOpen(true)}
-                  className="absolute top-3 right-3 p-1.5 text-indigo-200 hover:text-white hover:bg-white/20 rounded-full transition-colors z-30"
-                  title="AI API 키 설정"
-               >
-                  <CustomKeyIcon size={18} />
-               </button>
-
                <div className="relative z-10">
                  <h2 className="font-bold text-lg mb-1">재료가 {ingredients.length}개 있어요!</h2>
                  <p className="text-indigo-100 text-sm mb-4">아이들이 배고파하나요? 지금 바로 확인해보세요.</p>
-                 <div className="flex gap-2">
+                 <div className="flex gap-2 items-end">
                     <button 
                       onClick={handleGeneratePublicRecipes}
-                      className="flex-1 bg-white text-indigo-600 px-3 py-2.5 rounded-lg font-bold text-sm shadow-md active:scale-95 transition-transform flex items-center justify-center gap-2"
+                      className="flex-1 bg-white text-indigo-600 px-3 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-transform flex items-center justify-center gap-2 whitespace-nowrap"
                     >
                       <ChefHat size={16} />
-                      믿고 먹는 요리추천
+                      요리추천
                     </button>
-                    <div className="flex-1 relative group">
+                    <div className="flex-1 flex flex-col items-end gap-1">
+                        <button 
+                           onClick={() => setIsApiKeyModalOpen(true)}
+                           className="text-[10px] text-indigo-200 hover:text-white flex items-center gap-1 px-1 py-0.5 rounded hover:bg-white/10 transition-colors"
+                        >
+                           <CustomKeyIcon size={12} /> 설정
+                        </button>
                         <button 
                         onClick={handleGenerateAIRecipes}
-                        className="w-full bg-purple-700 text-white px-3 py-2.5 rounded-lg font-bold text-sm shadow-md active:scale-95 transition-transform flex items-center justify-center gap-2 border border-purple-500"
+                        className="w-full bg-purple-700 text-white px-3 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-transform flex items-center justify-center gap-2 border border-purple-500 whitespace-nowrap"
                         >
                         <Sparkles size={16} />
-                        AI 셰프의 요리추천
+                        AI 추천
                         </button>
                     </div>
                  </div>
@@ -653,7 +656,7 @@ export default function App() {
             <div className="flex p-1 bg-gray-200 rounded-xl mb-4 gap-0.5 app-nav">
               <button
                 onClick={() => setActiveTab(StorageType.FRIDGE)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
                   activeTab === StorageType.FRIDGE 
                     ? 'bg-white text-slate-800 shadow-sm' 
                     : 'text-slate-500 hover:text-slate-700'
@@ -664,7 +667,7 @@ export default function App() {
               </button>
               <button
                 onClick={() => setActiveTab(StorageType.FREEZER)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
                   activeTab === StorageType.FREEZER 
                     ? 'bg-white text-blue-600 shadow-sm' 
                     : 'text-slate-500 hover:text-slate-700'
@@ -675,7 +678,7 @@ export default function App() {
               </button>
               <button
                 onClick={() => setActiveTab(StorageType.PANTRY)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
                   activeTab === StorageType.PANTRY 
                     ? 'bg-white text-amber-600 shadow-sm' 
                     : 'text-slate-500 hover:text-slate-700'
@@ -705,7 +708,7 @@ export default function App() {
                         <h3 className="font-bold text-slate-700 text-sm">{CATEGORY_LABELS[cat]}</h3>
                         <span className="bg-gray-100 text-gray-500 text-xs px-1.5 py-0.5 rounded-full font-medium">{items.length}</span>
                       </div>
-                      <div className="space-y-0">
+                      <div className="grid grid-cols-2 gap-2">
                         {items.map(ingredient => (
                           <IngredientItem 
                             key={ingredient.id} 
@@ -758,7 +761,7 @@ export default function App() {
                      <button
                      key={tab}
                      onClick={() => setActiveRecipeTab(tab as any)}
-                     className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-bold transition-all relative ${
+                     className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-bold transition-all relative whitespace-nowrap ${
                        activeRecipeTab === tab 
                          ? 'bg-white text-indigo-700 shadow-sm' 
                          : 'text-slate-500 hover:text-slate-700'
@@ -827,14 +830,14 @@ export default function App() {
                     <button
                         onClick={handleRegenerateCurrentCategory}
                         disabled={regeneratingTab !== null}
-                        className="bg-white text-indigo-600 border border-indigo-200 px-6 py-3 rounded-xl font-bold text-sm shadow-sm hover:bg-indigo-50 active:scale-95 transition-all flex items-center gap-2 mx-auto disabled:opacity-50 disabled:active:scale-100"
+                        className="bg-white text-indigo-600 border border-indigo-200 px-6 py-3 rounded-xl font-bold text-sm shadow-sm hover:bg-indigo-50 active:scale-95 transition-all flex items-center gap-2 mx-auto disabled:opacity-50 disabled:active:scale-100 whitespace-nowrap"
                     >
                         <RefreshCw size={18} className={regeneratingTab ? 'animate-spin' : ''} />
                         {regeneratingTab 
                             ? '메뉴 다시 찾는 중...' 
                             : isUsingAI 
-                                ? `${activeRecipeTab === 'MAIN' ? '메인 요리' : activeRecipeTab === 'SIDE' ? '반찬' : '간식'}만 다시 요청하기`
-                                : `${activeRecipeTab === 'MAIN' ? '메인 요리' : activeRecipeTab === 'SIDE' ? '반찬' : '간식'} 다시 검색하기`
+                                ? `${activeRecipeTab === 'MAIN' ? '메인' : activeRecipeTab === 'SIDE' ? '반찬' : '간식'} 다시 받기`
+                                : `${activeRecipeTab === 'MAIN' ? '메인' : activeRecipeTab === 'SIDE' ? '반찬' : '간식'} 다시 검색`
                         }
                     </button>
                     <p className="text-xs text-slate-400 mt-2">
