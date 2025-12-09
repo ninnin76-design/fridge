@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { Ingredient, Recipe, StorageType, Category } from "../types";
 
@@ -25,28 +26,20 @@ const generateInventoryDescription = (ingredients: Ingredient[]) => {
     .join('\n');
 };
 
-export const validateApiKey = async (apiKey: string): Promise<boolean> => {
-  try {
-    const ai = new GoogleGenAI({ apiKey });
-    await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: "test",
-    });
-    return true;
-  } catch (error) {
-    return false;
-  }
-};
-
 export const suggestSpecificRecipes = async (
   ingredients: Ingredient[], 
   type: 'MAIN' | 'SIDE' | 'SNACK', 
-  count: number
+  count: number,
+  apiKey?: string
 ): Promise<Recipe[]> => {
   if (ingredients.length === 0) return [];
   
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const finalApiKey = apiKey || process.env.API_KEY;
+    if (!finalApiKey) {
+        throw new Error("API Key is missing. Please set your API key in settings.");
+    }
+    const ai = new GoogleGenAI({ apiKey: finalApiKey });
 
     const inventoryDescription = generateInventoryDescription(ingredients);
     const typeLabel = type === 'MAIN' ? '메인 요리 (MAIN)' : type === 'SIDE' ? '반찬 (SIDE)' : '간식 (SNACK)';
@@ -138,9 +131,13 @@ export const suggestSpecificRecipes = async (
   }
 };
 
-export const parseInventoryFromImage = async (base64Image: string): Promise<Ingredient[]> => {
+export const parseInventoryFromImage = async (base64Image: string, apiKey?: string): Promise<Ingredient[]> => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const finalApiKey = apiKey || process.env.API_KEY;
+    if (!finalApiKey) {
+        throw new Error("API Key is missing. Please set your API key in settings.");
+    }
+    const ai = new GoogleGenAI({ apiKey: finalApiKey });
 
     const prompt = `
       Analyze this image of a refrigerator inventory list/report.

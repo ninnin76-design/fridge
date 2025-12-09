@@ -10,6 +10,8 @@ import { TotalListView } from './components/TotalListView';
 import { BasicSeasoningManager } from './components/BasicSeasoningManager';
 import { DataSyncModal } from './components/DataSyncModal';
 import { SaltShakerIcon } from './components/SaltShakerIcon';
+import { CustomKeyIcon } from './components/CustomKeyIcon';
+import { ApiKeyModal } from './components/ApiKeyModal';
 import { searchPublicRecipes } from './services/mafraService';
 import { suggestSpecificRecipes as suggestAIRecipes } from './services/geminiService';
 import { autoDetectCategory } from './categoryHelper';
@@ -22,6 +24,8 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<StorageType>(StorageType.FRIDGE);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+  const [customApiKey, setCustomApiKey] = useState('');
 
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
   const [view, setView] = useState<'INVENTORY' | 'RECIPES' | 'TOTAL' | 'SEASONINGS' | 'SAVED_RECIPES'>('INVENTORY');
@@ -62,6 +66,12 @@ export default function App() {
            setBasicSeasonings(DEFAULT_BASIC_SEASONINGS);
         } else {
            setBasicSeasonings(dbSeasonings);
+        }
+        
+        // Load Custom API Key
+        const savedKey = localStorage.getItem('gemini_api_key');
+        if (savedKey) {
+            setCustomApiKey(savedKey);
         }
 
       } catch (error) {
@@ -278,7 +288,7 @@ export default function App() {
           let fetchFn: (type: 'MAIN' | 'SIDE' | 'SNACK') => Promise<Recipe[]>;
           
           if (useAI) {
-              fetchFn = (type) => suggestAIRecipes(allIngredients, type, type === 'MAIN' ? 3 : 2);
+              fetchFn = (type) => suggestAIRecipes(allIngredients, type, type === 'MAIN' ? 3 : 2, customApiKey);
           } else {
               fetchFn = (type) => searchPublicRecipes(allIngredients, type);
           }
@@ -307,7 +317,7 @@ export default function App() {
           setIsGeneratingRecipes(false);
           
           if (useAI) {
-              alert('AI 연결에 실패했습니다.\n환경 설정을 확인해주세요.');
+              alert('AI 연결에 실패했습니다.\nAPI 키 설정을 확인해주세요.');
           } else {
               alert("레시피를 불러오는 중 오류가 발생했습니다.");
           }
@@ -317,6 +327,13 @@ export default function App() {
   const handleGeneratePublicRecipes = () => generateRecipesCommon(false);
   
   const handleGenerateAIRecipes = () => {
+      // [Modified] Check for API Key first
+      if (!customApiKey) {
+          alert("AI 셰프 기능을 이용하려면 API 키 설정이 필요합니다.\n설정 창에서 키를 입력해주세요.");
+          setIsApiKeyModalOpen(true);
+          return;
+      }
+
       // PERMANENCE CHECK:
       // If we already have AI recipes generated and we are in AI mode, 
       // just show the existing list instead of regenerating.
@@ -339,7 +356,7 @@ export default function App() {
 
       try {
         if (isUsingAI) {
-            newRecipes = await suggestAIRecipes(allIngredients, targetTab, targetTab === 'MAIN' ? 3 : 2);
+            newRecipes = await suggestAIRecipes(allIngredients, targetTab, targetTab === 'MAIN' ? 3 : 2, customApiKey);
         } else {
             newRecipes = await searchPublicRecipes(allIngredients, targetTab);
         }
@@ -426,6 +443,15 @@ export default function App() {
 
       alert(`${itemsToBuy.length}개의 재료를 냉장고에 등록했습니다! 🎊`);
       setSelectedShoppingItems(new Set());
+  };
+  
+  const handleSaveApiKey = (key: string) => {
+      setCustomApiKey(key);
+      if (key) {
+        localStorage.setItem('gemini_api_key', key);
+      } else {
+        localStorage.removeItem('gemini_api_key');
+      }
   };
 
   if (view === 'TOTAL') {
@@ -521,6 +547,14 @@ export default function App() {
         {view === 'INVENTORY' && (
           <>
             <div className="mb-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden app-stats">
+               <button 
+                  onClick={() => setIsApiKeyModalOpen(true)}
+                  className="absolute top-3 right-3 p-1.5 text-indigo-200 hover:text-white hover:bg-white/20 rounded-full transition-colors z-30"
+                  title="AI API 키 설정"
+               >
+                  <CustomKeyIcon size={18} />
+               </button>
+
                <div className="relative z-10">
                  <h2 className="font-bold text-lg mb-1">재료가 {ingredients.length}개 있어요!</h2>
                  <p className="text-indigo-100 text-sm mb-4">아이들이 배고파하나요? 지금 바로 확인해보세요.</p>
@@ -890,6 +924,13 @@ export default function App() {
           basicSeasonings={basicSeasonings}
         />
       )}
+
+      <ApiKeyModal 
+        isOpen={isApiKeyModalOpen} 
+        onClose={() => setIsApiKeyModalOpen(false)} 
+        onSave={handleSaveApiKey}
+        currentKey={customApiKey}
+      />
 
     </div>
   );
