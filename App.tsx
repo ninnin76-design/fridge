@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Plus, Snowflake, Layers, ChefHat, Search, ArrowLeft, Package, ClipboardList, RefreshCw, ShoppingCart, Heart, Coffee, Utensils, CheckSquare, List, Users, AlertTriangle, Sparkles } from 'lucide-react';
 import { Ingredient, StorageType, Recipe, Category } from './types';
@@ -8,9 +9,7 @@ import { RecipeCard } from './components/RecipeCard';
 import { TotalListView } from './components/TotalListView';
 import { BasicSeasoningManager } from './components/BasicSeasoningManager';
 import { DataSyncModal } from './components/DataSyncModal';
-import { ApiKeyModal } from './components/ApiKeyModal';
 import { SaltShakerIcon } from './components/SaltShakerIcon';
-import { CustomKeyIcon } from './components/CustomKeyIcon';
 import { searchPublicRecipes } from './services/mafraService';
 import { suggestSpecificRecipes as suggestAIRecipes } from './services/geminiService';
 import { autoDetectCategory } from './categoryHelper';
@@ -23,8 +22,6 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<StorageType>(StorageType.FRIDGE);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
-  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
-  const [userApiKey, setUserApiKey] = useState<string | null>(null);
 
   const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
   const [view, setView] = useState<'INVENTORY' | 'RECIPES' | 'TOTAL' | 'SEASONINGS' | 'SAVED_RECIPES'>('INVENTORY');
@@ -66,10 +63,6 @@ export default function App() {
         } else {
            setBasicSeasonings(dbSeasonings);
         }
-
-        // Load API Key
-        const storedKey = localStorage.getItem('user_gemini_api_key');
-        if (storedKey) setUserApiKey(storedKey);
 
       } catch (error) {
         console.error("Failed to load data from DB:", error);
@@ -267,7 +260,7 @@ export default function App() {
   };
 
   // Recipe Generation Logic
-  const generateRecipesCommon = async (useAI: boolean, explicitKey?: string) => {
+  const generateRecipesCommon = async (useAI: boolean) => {
       setView('RECIPES');
       
       // Clear previous recipes immediately to prevent stale data visibility
@@ -285,10 +278,7 @@ export default function App() {
           let fetchFn: (type: 'MAIN' | 'SIDE' | 'SNACK') => Promise<Recipe[]>;
           
           if (useAI) {
-              // Ensure we use the explicit key. If it's missing or invalid, throw immediately.
-              // Changed length check to 15
-              if (!explicitKey || explicitKey.length < 15) throw new Error("INVALID_API_KEY");
-              fetchFn = (type) => suggestAIRecipes(explicitKey, allIngredients, type, type === 'MAIN' ? 3 : 2);
+              fetchFn = (type) => suggestAIRecipes(allIngredients, type, type === 'MAIN' ? 3 : 2);
           } else {
               fetchFn = (type) => searchPublicRecipes(allIngredients, type);
           }
@@ -309,10 +299,6 @@ export default function App() {
               setBackgroundLoading(false);
           }).catch(err => {
               console.warn("Background recipe fetch failed", err);
-               if (useAI || err.message === 'INVALID_API_KEY') {
-                   // If background fetch failed in AI mode, it's likely a key issue too. 
-                   // We don't alert here to avoid spamming alerts, but we log it.
-               }
               setBackgroundLoading(false);
           });
 
@@ -320,10 +306,8 @@ export default function App() {
           console.error("Error generating recipes:", error);
           setIsGeneratingRecipes(false);
           
-          // STRICT ERROR HANDLING: If AI mode was used, ANY error is treated as a key/config issue.
-          if (useAI || error.message === 'INVALID_API_KEY') {
-              alert('AI 연결에 실패했습니다.\nAPI 키가 유효하지 않거나 할당량이 초과되었습니다.\n설정을 확인해주세요.');
-              setIsApiKeyModalOpen(true);
+          if (useAI) {
+              alert('AI 연결에 실패했습니다.\n환경 설정을 확인해주세요.');
           } else {
               alert("레시피를 불러오는 중 오류가 발생했습니다.");
           }
@@ -336,24 +320,12 @@ export default function App() {
       // PERMANENCE CHECK:
       // If we already have AI recipes generated and we are in AI mode, 
       // just show the existing list instead of regenerating.
-      // User can use the "Regenerate" button inside the view if they want new ones.
       if (recipes.length > 0 && isUsingAI) {
           setView('RECIPES');
           return;
       }
 
-      // Direct check from localStorage to bypass state staleness
-      const storedKey = localStorage.getItem('user_gemini_api_key');
-      
-      // Strict pre-check for key validity (length 15)
-      if (!storedKey || storedKey.trim().length < 15) {
-          alert('AI 셰프 요리추천을 받으려면 유효한 Gemini API 키 설정이 필요합니다.\n설정 페이지로 이동합니다.');
-          setIsApiKeyModalOpen(true);
-          return;
-      }
-      
-      // Explicitly pass the key we just read to ensure no version mismatch
-      generateRecipesCommon(true, storedKey);
+      generateRecipesCommon(true);
   };
 
   const handleRegenerateCurrentCategory = async () => {
@@ -365,16 +337,9 @@ export default function App() {
       const allIngredients = getAllAvailableIngredients();
       let newRecipes: Recipe[] = [];
 
-      // Read key directly from localStorage
-      const currentApiKey = localStorage.getItem('user_gemini_api_key');
-
       try {
         if (isUsingAI) {
-            if (!currentApiKey || currentApiKey.length < 15) {
-                // If we are in AI mode but key is gone (e.g. deleted) or invalid, abort
-                throw new Error("INVALID_API_KEY");
-            }
-            newRecipes = await suggestAIRecipes(currentApiKey, allIngredients, targetTab, targetTab === 'MAIN' ? 3 : 2);
+            newRecipes = await suggestAIRecipes(allIngredients, targetTab, targetTab === 'MAIN' ? 3 : 2);
         } else {
             newRecipes = await searchPublicRecipes(allIngredients, targetTab);
         }
@@ -386,14 +351,7 @@ export default function App() {
       } catch (e: any) {
           console.error("Regeneration failed", e);
           setRegeneratingTab(null); // Clear loading state immediately on error
-          
-          // STRICT ERROR HANDLING for Regeneration too
-          if (isUsingAI || e.message === 'INVALID_API_KEY') {
-              alert('API 키 오류: 유효한 키가 아닙니다.\n다시 설정해주세요.');
-              setIsApiKeyModalOpen(true);
-          } else {
-              alert("다시 추천받기에 실패했습니다.");
-          }
+          alert("다시 추천받기에 실패했습니다.");
       }
       
       setRegeneratingTab(null);
@@ -581,16 +539,6 @@ export default function App() {
                         >
                         <Sparkles size={16} />
                         AI 셰프의 요리추천
-                        </button>
-                        <button 
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setIsApiKeyModalOpen(true);
-                            }}
-                            className="absolute bottom-full right-0 mb-2 bg-white text-purple-600 p-1.5 rounded-full shadow-md border border-purple-100 z-20 hover:scale-110 transition-transform hover:bg-purple-50"
-                            title="AI 셰프 설정"
-                        >
-                            <CustomKeyIcon size={14} />
                         </button>
                     </div>
                  </div>
@@ -941,14 +889,6 @@ export default function App() {
           ingredients={ingredients}
           basicSeasonings={basicSeasonings}
         />
-      )}
-
-      {isApiKeyModalOpen && (
-          <ApiKeyModal
-            isOpen={isApiKeyModalOpen}
-            onClose={() => setIsApiKeyModalOpen(false)}
-            onSave={(key) => setUserApiKey(key)}
-          />
       )}
 
     </div>

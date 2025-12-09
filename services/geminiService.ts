@@ -1,6 +1,5 @@
-
 import { GoogleGenAI, Type, Schema } from "@google/genai";
-import { Ingredient, Recipe, InventoryUpdate, StorageType, Category } from "../types";
+import { Ingredient, Recipe, StorageType, Category } from "../types";
 
 const MODEL_NAME = "gemini-2.5-flash";
 
@@ -26,69 +25,28 @@ const generateInventoryDescription = (ingredients: Ingredient[]) => {
     .join('\n');
 };
 
-/**
- * Validates the API Key by making a direct REST API call.
- * This bypasses the SDK's potential auto-authentication in dev environments (like AI Studio/IDX),
- * ensuring the key provided is ACTUALLY valid.
- */
 export const validateApiKey = async (apiKey: string): Promise<boolean> => {
-  if (!apiKey || apiKey.trim().length < 15) return false;
-
   try {
-    // Direct REST call to bypass SDK environment magic
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`;
-    
-    const challengeCode = `VALIDATION_${Date.now()}`;
-    
-    const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            contents: [{
-                parts: [{ text: `Reply with: ${challengeCode}` }]
-            }]
-        })
+    const ai = new GoogleGenAI({ apiKey });
+    await ai.models.generateContent({
+      model: MODEL_NAME,
+      contents: "test",
     });
-
-    // If the key is invalid, Google returns 400 or 403
-    if (!response.ok) {
-        console.warn(`API Validation Failed: ${response.status}`);
-        return false;
-    }
-
-    const data = await response.json();
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-    // Strict content check
-    if (text && text.includes(challengeCode)) {
-        return true;
-    }
-    
-    return false;
+    return true;
   } catch (error) {
-    console.warn("API Key Validation Network Error:", error);
     return false;
   }
 };
 
 export const suggestSpecificRecipes = async (
-  apiKey: string,
   ingredients: Ingredient[], 
   type: 'MAIN' | 'SIDE' | 'SNACK', 
   count: number
 ): Promise<Recipe[]> => {
   if (ingredients.length === 0) return [];
   
-  // STRICT VALIDATION: Block keys shorter than 15 chars immediately
-  if (!apiKey || apiKey.trim().length < 15) {
-      throw new Error("INVALID_API_KEY");
-  }
-
   try {
-    // Instantiate AI with the user-provided key
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
     const inventoryDescription = generateInventoryDescription(ingredients);
     const typeLabel = type === 'MAIN' ? '메인 요리 (MAIN)' : type === 'SIDE' ? '반찬 (SIDE)' : '간식 (SNACK)';
@@ -176,17 +134,13 @@ export const suggestSpecificRecipes = async (
 
   } catch (error: any) {
     console.error(`AI Generation Failed:`, error);
-    
-    // CRITICAL: Treat ANY error in this block as an API Key/Auth issue.
-    throw new Error("INVALID_API_KEY");
+    throw error;
   }
 };
 
-export const parseInventoryFromImage = async (apiKey: string, base64Image: string): Promise<Ingredient[]> => {
-  if (!apiKey || apiKey.length < 15) throw new Error("INVALID_API_KEY");
-  
+export const parseInventoryFromImage = async (base64Image: string): Promise<Ingredient[]> => {
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
     const prompt = `
       Analyze this image of a refrigerator inventory list/report.
@@ -251,6 +205,6 @@ export const parseInventoryFromImage = async (apiKey: string, base64Image: strin
 
   } catch (error: any) {
     console.error("Error parsing image inventory with AI:", error);
-    throw new Error("INVALID_API_KEY");
+    throw error;
   }
 };
