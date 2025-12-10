@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Recipe } from '../types';
 import { Clock, ChefHat, Youtube, ChevronDown, ChevronUp, AlertCircle, ShoppingCart, Heart, Utensils, Coffee } from 'lucide-react';
@@ -19,12 +18,9 @@ export const RecipeCard: React.FC<Props> = ({ recipe, isSaved = false, onToggleS
 
   const isMissingKeyItems = missingIngredients.length > 0;
 
-  const handleYoutubeSearch = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    const query = encodeURIComponent(`${recipe.name} 레시피`);
-    const url = `https://www.youtube.com/results?search_query=${query}`;
-    window.open(url, '_blank');
-  };
+  // Generate YouTube Search URL
+  const youtubeQuery = encodeURIComponent(`${recipe.name} 레시피`);
+  const youtubeUrl = `https://www.youtube.com/results?search_query=${youtubeQuery}`;
 
   const handleToggleSave = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -167,13 +163,16 @@ export const RecipeCard: React.FC<Props> = ({ recipe, isSaved = false, onToggleS
 
             {/* External Links Section */}
             <div className="mt-6 border-t border-slate-100 pt-4 flex justify-end">
-                <button
-                onClick={handleYoutubeSearch}
-                className="flex items-center gap-2 px-3 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-bold border border-red-100 hover:bg-red-100 transition-colors shadow-sm active:scale-95"
+                <a
+                  href={youtubeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="flex items-center gap-2 px-3 py-2 bg-red-50 text-red-600 rounded-lg text-xs font-bold border border-red-100 hover:bg-red-100 transition-colors shadow-sm active:scale-95"
                 >
                     <Youtube size={16} />
                     유튜브에서 영상 보기
-                </button>
+                </a>
             </div>
 
           </div>

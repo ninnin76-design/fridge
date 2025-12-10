@@ -1,4 +1,3 @@
-
 import { Category, StorageType } from "./types";
 import { Snowflake, Layers, Package } from "lucide-react";
 
@@ -12,6 +11,18 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   [Category.PROCESSED]: "가공식품",
   [Category.SAUCE]: "양념/소스",
   [Category.ETC]: "기타",
+};
+
+export const CATEGORY_EMOJIS: Record<Category, string> = {
+  [Category.VEGETABLE]: "🥬",
+  [Category.FRUIT]: "🍎",
+  [Category.MEAT]: "🥩",
+  [Category.FISH]: "🐟",
+  [Category.DAIRY]: "🥛",
+  [Category.GRAIN]: "🍚",
+  [Category.PROCESSED]: "🌭",
+  [Category.SAUCE]: "🧂",
+  [Category.ETC]: "📦",
 };
 
 export const CATEGORY_COLORS: Record<Category, string> = {

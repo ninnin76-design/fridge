@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect } from 'react';
 import { Plus, Snowflake, Layers, ChefHat, Search, ArrowLeft, Package, ClipboardList, RefreshCw, ShoppingCart, Heart, Coffee, Utensils, CheckSquare, List, Users, AlertTriangle, Sparkles, Share2, Download, X } from 'lucide-react';
 import { Ingredient, StorageType, Recipe, Category } from './types';
-import { DEFAULT_BASIC_SEASONINGS, CATEGORY_LABELS, CATEGORY_COLORS } from './constants';
+import { DEFAULT_BASIC_SEASONINGS, CATEGORY_LABELS, CATEGORY_COLORS, CATEGORY_EMOJIS } from './constants';
 import { IngredientItem } from './components/IngredientItem';
 import { AddIngredientModal } from './components/AddIngredientModal';
 import { RecipeCard } from './components/RecipeCard';
@@ -12,6 +11,7 @@ import { DataSyncModal } from './components/DataSyncModal';
 import { SaltShakerIcon } from './components/SaltShakerIcon';
 import { CustomKeyIcon } from './components/CustomKeyIcon';
 import { ApiKeyModal } from './components/ApiKeyModal';
+import { MessageModal } from './components/MessageModal';
 import { searchPublicRecipes } from './services/mafraService';
 import { suggestSpecificRecipes as suggestAIRecipes } from './services/geminiService';
 import { autoDetectCategory } from './categoryHelper';
@@ -51,6 +51,24 @@ export default function App() {
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showIosInstallModal, setShowIosInstallModal] = useState(false);
   const [isInstallable, setIsInstallable] = useState(false);
+
+  // Alert Modal State
+  const [alertState, setAlertState] = useState<{ isOpen: boolean; message: string; onConfirm?: () => void }>({
+    isOpen: false,
+    message: '',
+  });
+
+  // Helper to show custom alert
+  const showAlert = (message: string, onConfirm?: () => void) => {
+    setAlertState({ isOpen: true, message, onConfirm });
+  };
+
+  const closeAlert = () => {
+    setAlertState(prev => ({ ...prev, isOpen: false }));
+    if (alertState.onConfirm) {
+        alertState.onConfirm();
+    }
+  };
 
   // Load from IndexedDB and LocalStorage on mount
   useEffect(() => {
@@ -181,7 +199,7 @@ export default function App() {
       const seaCount = Array.isArray(rawSeasonings) ? rawSeasonings.length : 0;
 
       if (ingCount === 0 && seaCount === 0) {
-        alert("추가할 데이터가 없습니다.");
+        showAlert("추가할 데이터가 없습니다.");
         return;
       }
 
@@ -265,7 +283,7 @@ export default function App() {
               if (addedIngredientsCount > 0) msg += `\n[신규 재료 ${addedIngredientsCount}개]`;
               if (addedSeasoningsCount > 0) msg += `\n[신규 양념 ${addedSeasoningsCount}개]`;
           }
-          alert(msg);
+          showAlert(msg);
       }, 100);
   };
 
@@ -344,9 +362,9 @@ export default function App() {
           setIsGeneratingRecipes(false);
           
           if (useAI) {
-              alert('AI 연결에 실패했습니다.\nAPI 키 설정을 확인해주세요.');
+              showAlert('AI 연결에 실패했습니다.\nAPI 키 설정을 확인해주세요.');
           } else {
-              alert("레시피를 불러오는 중 오류가 발생했습니다.");
+              showAlert("레시피를 불러오는 중 오류가 발생했습니다.");
           }
       }
   };
@@ -356,8 +374,10 @@ export default function App() {
   const handleGenerateAIRecipes = () => {
       // [Modified] Check for API Key first
       if (!customApiKey) {
-          alert("AI 셰프 기능을 이용하려면 API 키 설정이 필요합니다.\n설정 창에서 키를 입력해주세요.");
-          setIsApiKeyModalOpen(true);
+          // Use showAlert instead of alert(), and pass a callback to open settings
+          showAlert("AI 셰프 기능을 이용하려면 API 키 설정이 필요합니다.\n설정 창에서 키를 입력해주세요.", () => {
+              setIsApiKeyModalOpen(true);
+          });
           return;
       }
 
@@ -395,7 +415,7 @@ export default function App() {
       } catch (e: any) {
           console.error("Regeneration failed", e);
           setRegeneratingTab(null); // Clear loading state immediately on error
-          alert("다시 추천받기에 실패했습니다.");
+          showAlert("다시 추천받기에 실패했습니다.");
       }
       
       setRegeneratingTab(null);
@@ -468,7 +488,7 @@ export default function App() {
           setSavedRecipes(updatedRecipes);
       }
 
-      alert(`${itemsToBuy.length}개의 재료를 냉장고에 등록했습니다! 🎊`);
+      showAlert(`${itemsToBuy.length}개의 재료를 냉장고에 등록했습니다! 🎊`);
       setSelectedShoppingItems(new Set());
   };
   
@@ -485,9 +505,9 @@ export default function App() {
   const handleShare = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
-      alert('주소가 복사되었습니다! 카톡으로 친구에게 공유해보세요.');
+      showAlert('주소가 복사되었습니다! 카톡으로 친구에게 공유해보세요.');
     } catch (err) {
-      alert('주소 복사에 실패했습니다.');
+      showAlert('주소 복사에 실패했습니다.');
     }
   };
 
@@ -622,26 +642,27 @@ export default function App() {
                <div className="relative z-10">
                  <h2 className="font-bold text-lg mb-1">재료가 {ingredients.length}개 있어요!</h2>
                  <p className="text-indigo-100 text-sm mb-4">아이들이 배고파하나요? 지금 바로 확인해보세요.</p>
-                 <div className="flex gap-2 items-end">
+                 <div className="flex gap-3 items-end mt-2">
                     <button 
                       onClick={handleGeneratePublicRecipes}
-                      className="flex-1 bg-white text-indigo-600 px-3 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-transform flex items-center justify-center gap-2 whitespace-nowrap"
+                      className="flex-1 min-w-0 h-12 bg-white text-indigo-600 rounded-xl font-bold text-base shadow-lg shadow-indigo-900/20 active:scale-95 transition-transform flex items-center justify-center gap-2 whitespace-nowrap"
                     >
-                      <ChefHat size={16} />
+                      <ChefHat size={20} />
                       요리추천
                     </button>
-                    <div className="flex-1 flex flex-col items-end gap-1">
+                    <div className="flex-1 min-w-0 flex flex-col items-end gap-2">
                         <button 
                            onClick={() => setIsApiKeyModalOpen(true)}
-                           className="text-[10px] text-indigo-200 hover:text-white flex items-center gap-1 px-1 py-0.5 rounded hover:bg-white/10 transition-colors"
+                           className="w-8 h-8 flex items-center justify-center bg-white/25 text-white hover:bg-white/40 rounded-full transition-colors shadow-sm backdrop-blur-sm"
+                           title="AI API 키 설정"
                         >
-                           <CustomKeyIcon size={12} /> 설정
+                           <CustomKeyIcon size={20} />
                         </button>
                         <button 
                         onClick={handleGenerateAIRecipes}
-                        className="w-full bg-purple-700 text-white px-3 py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-transform flex items-center justify-center gap-2 border border-purple-500 whitespace-nowrap"
+                        className="w-full h-12 bg-purple-700 text-white rounded-xl font-bold text-base shadow-lg shadow-purple-900/20 active:scale-95 transition-transform flex items-center justify-center gap-2 border border-purple-500 whitespace-nowrap"
                         >
-                        <Sparkles size={16} />
+                        <Sparkles size={20} />
                         AI 추천
                         </button>
                     </div>
@@ -705,7 +726,10 @@ export default function App() {
                   return (
                     <div key={cat} className="animate-fade-in">
                       <div className="flex items-center gap-2 mb-2 px-1">
-                        <h3 className="font-bold text-slate-700 text-sm">{CATEGORY_LABELS[cat]}</h3>
+                        <h3 className="font-bold text-slate-700 text-sm">
+                            <span className="mr-1.5 text-base">{CATEGORY_EMOJIS[cat]}</span>
+                            {CATEGORY_LABELS[cat]}
+                        </h3>
                         <span className="bg-gray-100 text-gray-500 text-xs px-1.5 py-0.5 rounded-full font-medium">{items.length}</span>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
@@ -1002,6 +1026,13 @@ export default function App() {
            </div>
         </div>
       )}
+
+      {/* Custom Message Modal (Replaces window.alert) */}
+      <MessageModal 
+        isOpen={alertState.isOpen} 
+        message={alertState.message} 
+        onClose={closeAlert} 
+      />
 
       <AddIngredientModal 
         isOpen={isAddModalOpen} 
