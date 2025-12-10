@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Snowflake, Layers, ChefHat, Search, ArrowLeft, Package, ClipboardList, RefreshCw, ShoppingCart, Heart, Coffee, Utensils, CheckSquare, List, Users, AlertTriangle, Sparkles, Share2, Download, X } from 'lucide-react';
+import { Plus, Snowflake, Layers, ChefHat, Search, ArrowLeft, Package, ClipboardList, RefreshCw, ShoppingCart, Heart, Coffee, Utensils, CheckSquare, List, Users, AlertTriangle, Sparkles, Share2, Download, X, MoreVertical, Globe } from 'lucide-react';
 import { Ingredient, StorageType, Recipe, Category } from './types';
 import { DEFAULT_BASIC_SEASONINGS, CATEGORY_LABELS, CATEGORY_COLORS, CATEGORY_EMOJIS } from './constants';
 import { IngredientItem } from './components/IngredientItem';
@@ -49,8 +49,9 @@ export default function App() {
 
   // PWA Install State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [showIosInstallModal, setShowIosInstallModal] = useState(false);
+  const [showInstallModal, setShowInstallModal] = useState(false);
   const [isInstallable, setIsInstallable] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
 
   // Alert Modal State
   const [alertState, setAlertState] = useState<{ isOpen: boolean; message: string; onConfirm?: () => void }>({
@@ -104,7 +105,19 @@ export default function App() {
 
     loadData();
 
-    // PWA Install Prompt Listener
+    // Check Platform & Standalone Status
+    const checkEnvironment = () => {
+        const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+        setIsIOS(ios);
+
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
+        
+        // Show install button if NOT in standalone mode (i.e., running in browser)
+        setIsInstallable(!isStandalone);
+    };
+    checkEnvironment();
+
+    // PWA Install Prompt Listener (Chrome/Android)
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -112,15 +125,6 @@ export default function App() {
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    // Check if iOS (to show manual install instructions)
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-    // Check if already in standalone mode (installed)
-    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
-    
-    if (isIOS && !isStandalone) {
-        setIsInstallable(true); // Manually handle iOS
-    }
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
@@ -513,16 +517,15 @@ export default function App() {
 
   const handleInstallClick = async () => {
     if (deferredPrompt) {
-      // Android / Desktop Chrome
+      // Android / Chrome / Edge Native Install
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
       if (outcome === 'accepted') {
         setDeferredPrompt(null);
-        setIsInstallable(false);
       }
     } else {
-      // iOS or unknown
-      setShowIosInstallModal(true);
+      // iOS or In-App Browser (Kakao, Naver, etc.)
+      setShowInstallModal(true);
     }
   };
 
@@ -550,61 +553,61 @@ export default function App() {
     <div className="min-h-screen pb-20 max-w-md mx-auto bg-gray-50 shadow-2xl overflow-hidden relative">
       
       {/* Header */}
-      <header className="bg-white px-6 pt-12 pb-4 sticky top-0 z-10 border-b border-gray-100 flex items-center justify-between app-header">
+      <header className="bg-white px-4 pt-12 pb-4 sticky top-0 z-10 border-b border-gray-100 flex items-center justify-between app-header">
         {(view === 'RECIPES' || view === 'SAVED_RECIPES') ? (
           <button onClick={() => setView('INVENTORY')} className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-full">
             <ArrowLeft />
           </button>
         ) : (
-          <div className="flex flex-col min-w-0 mr-4">
-            <h1 className="text-2xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-indigo-800 whitespace-nowrap leading-none mb-1">
+          <div className="flex flex-col min-w-0 mr-2">
+            <h1 className="text-lg sm:text-2xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-indigo-800 whitespace-nowrap leading-none mb-1 truncate">
               엄마의 냉장고
             </h1>
-            <p className="text-xs font-bold text-slate-500 tracking-wide whitespace-nowrap opacity-75">
+            <p className="text-[10px] sm:text-xs font-bold text-slate-500 tracking-wide whitespace-nowrap opacity-75 truncate">
               오늘 뭐 먹지 고민 해결! 🥘
             </p>
           </div>
         )}
         
-        <div className="flex gap-2 bg-slate-100 p-1 rounded-full shrink-0">
+        <div className="flex gap-1 bg-slate-100 p-1 rounded-full shrink-0">
           {view === 'INVENTORY' && (
-            <div className="flex gap-1">
+            <div className="flex gap-0.5">
                 {isInstallable && (
                     <button 
                       onClick={handleInstallClick}
-                      className="bg-indigo-600 p-2 rounded-full text-white shadow-sm hover:bg-indigo-700 transition-colors animate-pulse"
+                      className="bg-indigo-600 p-1.5 rounded-full text-white shadow-sm hover:bg-indigo-700 transition-colors animate-pulse"
                       title="앱 설치(다운로드)"
                     >
-                      <Download size={18} />
+                      <Download size={16} />
                     </button>
                 )}
                 <button 
                   onClick={handleShare}
-                  className="bg-white p-2 rounded-full text-slate-600 shadow-sm hover:text-indigo-600 transition-colors"
+                  className="bg-white p-1.5 rounded-full text-slate-600 shadow-sm hover:text-indigo-600 transition-colors"
                   title="주소 공유하기"
                 >
-                  <Share2 size={18} />
+                  <Share2 size={16} />
                 </button>
                 <button 
                   onClick={() => setIsSyncModalOpen(true)}
-                  className="bg-white p-2 rounded-full text-slate-600 shadow-sm hover:text-green-600 transition-colors"
+                  className="bg-white p-1.5 rounded-full text-slate-600 shadow-sm hover:text-green-600 transition-colors"
                   title="데이터 동기화 (아이들과 공유)"
                 >
-                  <Users size={18} />
+                  <Users size={16} />
                 </button>
                 <button 
                   onClick={() => setView('SEASONINGS')}
-                  className="bg-white p-2 rounded-full text-slate-600 shadow-sm hover:text-amber-600 transition-colors"
+                  className="bg-white p-1.5 rounded-full text-slate-600 shadow-sm hover:text-amber-600 transition-colors"
                   title="기본 양념/소스 관리"
                 >
-                  <SaltShakerIcon size={18} />
+                  <SaltShakerIcon size={16} />
                 </button>
                 <button 
                   onClick={() => setView('TOTAL')}
-                  className="bg-white p-2 rounded-full text-slate-600 shadow-sm hover:text-slate-900 transition-colors"
+                  className="bg-white p-1.5 rounded-full text-slate-600 shadow-sm hover:text-slate-900 transition-colors"
                   title="전체 재고 확인"
                 >
-                  <ClipboardList size={18} />
+                  <ClipboardList size={16} />
                 </button>
             </div>
           )}
@@ -613,7 +616,7 @@ export default function App() {
         {view === 'INVENTORY' && (
             <button 
             onClick={() => setView('SAVED_RECIPES')}
-            className="bg-pink-50 p-2.5 rounded-full text-pink-500 hover:bg-pink-100 transition-colors relative ml-2 shrink-0"
+            className="bg-pink-50 p-2 rounded-full text-pink-500 hover:bg-pink-100 transition-colors relative ml-1 shrink-0"
             title="내가 찜한 레시피"
             >
             <Heart size={20} fill={savedRecipes.length > 0 ? "currentColor" : "none"} />
@@ -726,8 +729,8 @@ export default function App() {
                   return (
                     <div key={cat} className="animate-fade-in">
                       <div className="flex items-center gap-2 mb-2 px-1">
-                        <h3 className="font-bold text-slate-700 text-sm">
-                            <span className="mr-1.5 text-base">{CATEGORY_EMOJIS[cat]}</span>
+                        <h3 className="font-bold text-slate-700 text-sm flex items-center">
+                            <span className="mr-1.5 text-lg leading-none">{CATEGORY_EMOJIS[cat]}</span>
                             {CATEGORY_LABELS[cat]}
                         </h3>
                         <span className="bg-gray-100 text-gray-500 text-xs px-1.5 py-0.5 rounded-full font-medium">{items.length}</span>
@@ -1001,26 +1004,48 @@ export default function App() {
 
       </main>
 
-      {/* iOS Install Guide Modal */}
-      {showIosInstallModal && (
-        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowIosInstallModal(false)}>
+      {/* Universal Install Guide Modal */}
+      {showInstallModal && (
+        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowInstallModal(false)}>
            <div className="bg-white w-full max-w-md p-6 rounded-t-2xl animate-bounce-in" onClick={(e) => e.stopPropagation()}>
                <div className="flex justify-between items-start mb-4">
-                   <h3 className="text-xl font-bold text-slate-900">앱 설치 방법 (아이폰)</h3>
-                   <button onClick={() => setShowIosInstallModal(false)} className="p-1 bg-slate-100 rounded-full"><X size={20}/></button>
+                   <h3 className="text-xl font-bold text-slate-900">앱 설치 방법</h3>
+                   <button onClick={() => setShowInstallModal(false)} className="p-1 bg-slate-100 rounded-full"><X size={20}/></button>
                </div>
-               <div className="space-y-4 text-slate-600 text-sm">
-                   <p>아이폰은 보안상 수동으로 설치해야 합니다.</p>
-                   <div className="flex items-center gap-3">
-                       <span className="bg-slate-100 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs">1</span>
-                       <span>사파리(Safari) 브라우저 하단 <strong>공유 버튼</strong>을 누르세요.</span>
-                   </div>
-                   <div className="flex items-center gap-3">
-                       <span className="bg-slate-100 w-6 h-6 rounded-full flex items-center justify-center font-bold text-xs">2</span>
-                       <span>메뉴를 내려서 <strong>'홈 화면에 추가'</strong>를 선택하세요.</span>
-                   </div>
+               
+               <div className="space-y-6 text-slate-600 text-sm">
+                   {isIOS ? (
+                       // iOS Instructions
+                       <>
+                           <div className="flex items-center gap-3">
+                               <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">1</span>
+                               <span>사파리(Safari) 브라우저 하단 <strong className="text-indigo-600">공유 버튼</strong>을 누르세요.</span>
+                           </div>
+                           <div className="flex items-center gap-3">
+                               <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">2</span>
+                               <span>메뉴를 내려서 <strong className="text-indigo-600">'홈 화면에 추가'</strong>를 선택하세요.</span>
+                           </div>
+                       </>
+                   ) : (
+                       // Android / KakaoTalk In-App Instructions
+                       <>
+                           <div className="bg-amber-50 p-3 rounded-lg text-amber-800 text-xs mb-2 flex gap-2 border border-amber-100">
+                                <AlertTriangle size={16} className="shrink-0" />
+                                <div>카카오톡 등 앱 내부에서는 설치가 안 될 수 있습니다. <strong>Chrome(크롬)</strong>이나 <strong>삼성 인터넷</strong>으로 열어주세요.</div>
+                           </div>
+                           <div className="flex items-center gap-3">
+                               <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">1</span>
+                               <span>브라우저 우측 상단(또는 하단)의 <strong className="text-indigo-600">메뉴(⋮ 또는 ≡)</strong>를 누르세요.</span>
+                           </div>
+                           <div className="flex items-center gap-3">
+                               <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">2</span>
+                               <span><strong className="text-indigo-600">'앱 설치'</strong> 또는 <strong className="text-indigo-600">'홈 화면에 추가'</strong>를 선택하세요.</span>
+                           </div>
+                       </>
+                   )}
+                   
                    <div className="mt-4 p-3 bg-indigo-50 rounded-xl text-indigo-700 font-bold text-center">
-                       이제 앱처럼 편하게 사용하세요! 🎉
+                       설치 후 앱처럼 편하게 사용하세요! 🎉
                    </div>
                </div>
            </div>
