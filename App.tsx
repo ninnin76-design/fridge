@@ -598,7 +598,7 @@ export default function App() {
 
     // 2. Native Install Prompt (Chrome/Edge/Samsung Internet)
     if (deferredPrompt) {
-      // Trigger local loading state for button feedback
+      // Trigger the loading overlay immediately
       setIsInstalling(true);
       
       try {
@@ -606,10 +606,10 @@ export default function App() {
         const { outcome } = await deferredPrompt.userChoice;
         
         if (outcome === 'accepted') {
-           // User accepted, UI stays in 'installing' state until 'appinstalled' fires
+           // User accepted, keep loading screen until 'appinstalled' fires
            setDeferredPrompt(null);
         } else {
-           // User dismissed, revert UI
+           // User dismissed, hide loading screen
            setIsInstalling(false);
         }
       } catch (e) {
@@ -665,15 +665,7 @@ export default function App() {
         <div className="flex gap-1 bg-slate-100 p-1 rounded-full shrink-0">
           {view === 'INVENTORY' && (
             <div className="flex gap-0.5">
-                {isInstallable && (
-                    <button 
-                      onClick={handleInstallClick}
-                      className="bg-indigo-600 p-1.5 rounded-full text-white shadow-sm hover:bg-indigo-700 transition-colors animate-pulse"
-                      title="앱 설치(다운로드)"
-                    >
-                      <Download size={16} />
-                    </button>
-                )}
+                {/* Install button removed from header to use bottom banner exclusively */}
                 <button 
                   onClick={handleShare}
                   className="bg-white p-1.5 rounded-full text-slate-600 shadow-sm hover:text-indigo-600 transition-colors"
@@ -974,124 +966,14 @@ export default function App() {
           </div>
         )}
 
-        {/* ... Saved Recipes View (Kept same) ... */}
-        {view === 'SAVED_RECIPES' && (
-             <div className="animate-fade-in pb-40">
-                {savedRecipes && savedRecipes.length > 0 ? (
-                    <>
-                        <div className="bg-pink-50 p-4 rounded-xl mb-6 border border-pink-100 flex items-start gap-3">
-                            <Heart className="text-pink-500 mt-1 shrink-0" fill="currentColor" size={20} />
-                            <div className="text-sm text-pink-800">
-                                <p className="font-bold mb-1">찜해둔 요리 목록입니다.</p>
-                                <p>언제든지 레시피를 다시 확인하고 요리할 수 있어요.</p>
-                            </div>
-                        </div>
-
-                        <div className="flex bg-gray-100 p-1 rounded-xl mb-6">
-                            <button 
-                                onClick={() => setShowShoppingList(false)}
-                                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${!showShoppingList ? 'bg-white shadow-sm text-pink-600' : 'text-slate-400'}`}
-                            >
-                                <List size={16} /> 레시피 보기
-                            </button>
-                            <button 
-                                onClick={() => setShowShoppingList(true)}
-                                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${showShoppingList ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}
-                            >
-                                <CheckSquare size={16} /> 장보기 리스트
-                            </button>
-                        </div>
-
-                        {showShoppingList ? (
-                            <div className="animate-fade-in">
-                                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 text-lg">
-                                    <ShoppingCart size={20} className="text-indigo-600" />
-                                    장보기 체크리스트
-                                </h3>
-                                {getShoppingList().length > 0 ? (
-                                    <>
-                                        <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden mb-32">
-                                            {getShoppingList().map((item, idx) => (
-                                                <label key={idx} className="p-4 border-b border-slate-100 last:border-0 flex items-start gap-3 hover:bg-slate-50 transition-colors cursor-pointer group select-none">
-                                                    <div className="relative flex items-center mt-1">
-                                                        <input 
-                                                            type="checkbox" 
-                                                            className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" 
-                                                            onChange={() => handleToggleShoppingItem(item.name)}
-                                                            checked={selectedShoppingItems.has(item.name)}
-                                                        />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <p className={`font-bold text-base transition-colors ${selectedShoppingItems.has(item.name) ? 'text-slate-400 line-through' : 'text-slate-800 group-hover:text-indigo-700'}`}>
-                                                            {item.name}
-                                                        </p>
-                                                        <div className="flex flex-wrap gap-1 mt-1">
-                                                            {item.recipes.map((r, i) => (
-                                                                <span key={i} className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-md">
-                                                                    {r}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                </label>
-                                            ))}
-                                        </div>
-                                        
-                                        {/* Fixed Bottom Footer for Confirmation */}
-                                        {selectedShoppingItems.size > 0 && (
-                                            <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-100 p-4 pb-8 z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-                                                <button
-                                                    onClick={handleConfirmShopping}
-                                                    className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 active:scale-[0.98] transition-all text-base"
-                                                >
-                                                    <CheckSquare size={20} />
-                                                    냉장고에 넣기 ({selectedShoppingItems.size}개)
-                                                </button>
-                                            </div>
-                                        )}
-                                    </>
-                                ) : (
-                                    <div className="text-center py-10 bg-white rounded-xl border border-dashed border-slate-200">
-                                        <p className="text-slate-500 font-bold">살 것이 없어요! 🎉</p>
-                                        <p className="text-xs text-slate-400 mt-1">모든 재료가 냉장고에 있습니다.</p>
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="space-y-6">
-                              {savedRecipes.map(recipe => (
-                                  <RecipeCard 
-                                      key={recipe.id} 
-                                      recipe={recipe} 
-                                      isSaved={true}
-                                      onToggleSave={handleToggleSaveRecipe}
-                                  />
-                              ))}
-                            </div>
-                        )}
-                    </>
-                ) : (
-                    <div className="text-center py-20">
-                        <div className="bg-pink-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-pink-300">
-                            <Heart size={32} />
-                        </div>
-                        <h2 className="text-lg font-bold text-slate-800 mb-2">아직 찜한 요리가 없어요.</h2>
-                        <p className="text-slate-500 text-sm">
-                            '요리 추천 받기'에서 마음에 드는 메뉴의<br/>
-                            하트(❤️)를 눌러 저장해보세요!
-                        </p>
-                    </div>
-                )}
-             </div>
-        )}
-
         {view === 'INVENTORY' && (
           <button
             onClick={() => {
               setEditingIngredient(null);
               setIsAddModalOpen(true);
             }}
-            className="fixed bottom-6 right-6 w-14 h-14 bg-slate-900 rounded-full text-white shadow-xl flex items-center justify-center hover:bg-slate-800 hover:scale-105 active:scale-95 transition-all z-40 app-fab"
+            // Floating Action Button moves up when Install Banner is present
+            className={`fixed right-6 w-14 h-14 bg-slate-900 rounded-full text-white shadow-xl flex items-center justify-center hover:bg-slate-800 hover:scale-105 active:scale-95 transition-all z-40 app-fab ${isInstallable ? 'bottom-24' : 'bottom-6'}`}
           >
             <Plus size={28} />
           </button>
@@ -1116,6 +998,28 @@ export default function App() {
                 설치 화면 닫기 (오래 걸릴 경우)
             </button>
         </div>
+      )}
+      
+      {/* Install App Banner (Bottom) */}
+      {isInstallable && (
+          <div className="fixed bottom-0 left-0 right-0 z-[80] bg-white border-t border-slate-100 p-4 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] animate-fade-in flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                  <div className="bg-indigo-600 p-2.5 rounded-xl text-white shadow-sm">
+                      <Smartphone size={20} />
+                  </div>
+                  <div>
+                      <h4 className="font-bold text-slate-900 text-sm">엄마의 냉장고 앱 설치</h4>
+                      <p className="text-xs text-slate-500">더 빠르고 편하게 사용하세요!</p>
+                  </div>
+              </div>
+              <button 
+                  onClick={handleInstallClick}
+                  disabled={isInstalling}
+                  className="bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-bold text-sm shadow-md active:scale-95 transition-all whitespace-nowrap disabled:opacity-70 disabled:active:scale-100"
+              >
+                  앱 설치하고 편하게 쓰기
+              </button>
+          </div>
       )}
 
       {/* Universal Install Guide Modal */}
