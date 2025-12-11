@@ -13,14 +13,14 @@ export const MessageModal: React.FC<Props> = ({ isOpen, message, onClose, type =
 
   return (
     <div 
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" 
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" 
       onClick={onClose}
     >
       <div 
-        className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-bounce-in flex flex-col max-h-[80vh]" 
+        className="bg-white rounded-2xl w-[90%] max-w-sm shadow-2xl overflow-hidden animate-bounce-in flex flex-col max-h-[60vh] my-auto" 
         onClick={e => e.stopPropagation()}
       >
-        <div className="p-6 text-center overflow-y-auto custom-scrollbar">
+        <div className="p-6 text-center overflow-y-auto custom-scrollbar flex-1">
           <div className="mb-4 flex justify-center">
              {type === 'error' ? (
                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center text-red-500 shrink-0">

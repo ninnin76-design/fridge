@@ -881,171 +881,52 @@ export default function App() {
           </div>
         )}
 
-        {/* ... Saved Recipes View (Kept same) ... */}
-        {view === 'SAVED_RECIPES' && (
-             <div className="animate-fade-in pb-40">
-                {savedRecipes.length > 0 ? (
-                    <>
-                        <div className="bg-pink-50 p-4 rounded-xl mb-6 border border-pink-100 flex items-start gap-3">
-                            <Heart className="text-pink-500 mt-1 shrink-0" fill="currentColor" size={20} />
-                            <div className="text-sm text-pink-800">
-                                <p className="font-bold mb-1">찜해둔 요리 목록입니다.</p>
-                                <p>언제든지 레시피를 다시 확인하고 요리할 수 있어요.</p>
-                            </div>
-                        </div>
-
-                        <div className="flex bg-gray-100 p-1 rounded-xl mb-6">
-                            <button 
-                                onClick={() => setShowShoppingList(false)}
-                                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${!showShoppingList ? 'bg-white shadow-sm text-pink-600' : 'text-slate-400'}`}
-                            >
-                                <List size={16} /> 레시피 보기
-                            </button>
-                            <button 
-                                onClick={() => setShowShoppingList(true)}
-                                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${showShoppingList ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}
-                            >
-                                <CheckSquare size={16} /> 장보기 리스트
-                            </button>
-                        </div>
-
-                        {showShoppingList ? (
-                            <div className="animate-fade-in">
-                                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 text-lg">
-                                    <ShoppingCart size={20} className="text-indigo-600" />
-                                    장보기 체크리스트
-                                </h3>
-                                {getShoppingList().length > 0 ? (
-                                    <>
-                                        <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden mb-32">
-                                            {getShoppingList().map((item, idx) => (
-                                                <label key={idx} className="p-4 border-b border-slate-100 last:border-0 flex items-start gap-3 hover:bg-slate-50 transition-colors cursor-pointer group select-none">
-                                                    <div className="relative flex items-center mt-1">
-                                                        <input 
-                                                            type="checkbox" 
-                                                            className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" 
-                                                            onChange={() => handleToggleShoppingItem(item.name)}
-                                                            checked={selectedShoppingItems.has(item.name)}
-                                                        />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <p className={`font-bold text-base transition-colors ${selectedShoppingItems.has(item.name) ? 'text-slate-400 line-through' : 'text-slate-800 group-hover:text-indigo-700'}`}>
-                                                            {item.name}
-                                                        </p>
-                                                        <div className="flex flex-wrap gap-1 mt-1">
-                                                            {item.recipes.map((r, i) => (
-                                                                <span key={i} className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-md">
-                                                                    {r}
-                                                                </span>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                </label>
-                                            ))}
-                                        </div>
-                                        
-                                        {/* Fixed Bottom Footer for Confirmation */}
-                                        {selectedShoppingItems.size > 0 && (
-                                            <div className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-white border-t border-slate-100 p-4 pb-8 z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-                                                <button
-                                                    onClick={handleConfirmShopping}
-                                                    className="w-full bg-indigo-600 text-white py-3.5 rounded-xl font-bold shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 active:scale-[0.98] transition-all text-base"
-                                                >
-                                                    <CheckSquare size={20} />
-                                                    냉장고에 넣기 ({selectedShoppingItems.size}개)
-                                                </button>
-                                            </div>
-                                        )}
-                                    </>
-                                ) : (
-                                    <div className="text-center py-10 bg-white rounded-xl border border-dashed border-slate-200">
-                                        <p className="text-slate-500 font-bold">살 것이 없어요! 🎉</p>
-                                        <p className="text-xs text-slate-400 mt-1">모든 재료가 냉장고에 있습니다.</p>
-                                    </div>
-                                )}
-                            </div>
-                        ) : (
-                            savedRecipes.map(recipe => (
-                                <RecipeCard 
-                                    key={recipe.id} 
-                                    recipe={recipe} 
-                                    isSaved={true}
-                                    onToggleSave={handleToggleSaveRecipe}
-                                />
-                            ))
-                        )}
-                    </>
-                ) : (
-                    <div className="text-center py-20">
-                        <div className="bg-pink-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-pink-300">
-                            <Heart size={32} />
-                        </div>
-                        <h2 className="text-lg font-bold text-slate-800 mb-2">아직 찜한 요리가 없어요.</h2>
-                        <p className="text-slate-500 text-sm">
-                            '요리 추천 받기'에서 마음에 드는 메뉴의<br/>
-                            하트(❤️)를 눌러 저장해보세요!
-                        </p>
-                    </div>
-                )}
-             </div>
-        )}
-
-        {view === 'INVENTORY' && (
-          <button
-            onClick={() => {
-              setEditingIngredient(null);
-              setIsAddModalOpen(true);
-            }}
-            className="fixed bottom-6 right-6 w-14 h-14 bg-slate-900 rounded-full text-white shadow-xl flex items-center justify-center hover:bg-slate-800 hover:scale-105 active:scale-95 transition-all z-40 app-fab"
-          >
-            <Plus size={28} />
-          </button>
-        )}
-
       </main>
 
       {/* Universal Install Guide Modal */}
       {showInstallModal && (
-        <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowInstallModal(false)}>
-           <div className="bg-white w-full max-w-md p-6 rounded-t-2xl animate-bounce-in" onClick={(e) => e.stopPropagation()}>
-               <div className="flex justify-between items-start mb-4">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowInstallModal(false)}>
+           <div className="bg-white w-[90%] max-w-sm rounded-2xl animate-bounce-in flex flex-col max-h-[75vh] shadow-2xl overflow-hidden my-auto" onClick={(e) => e.stopPropagation()}>
+               <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
                    <h3 className="text-xl font-bold text-slate-900">앱 설치 방법</h3>
-                   <button onClick={() => setShowInstallModal(false)} className="p-1 bg-slate-100 rounded-full"><X size={20}/></button>
+                   <button onClick={() => setShowInstallModal(false)} className="p-1 bg-slate-100 rounded-full hover:bg-slate-200"><X size={20}/></button>
                </div>
                
-               <div className="space-y-6 text-slate-600 text-sm">
-                   {isIOS ? (
-                       // iOS Instructions
-                       <>
-                           <div className="flex items-center gap-3">
-                               <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">1</span>
-                               <span>사파리(Safari) 브라우저 하단 <strong className="text-indigo-600">공유 버튼</strong>을 누르세요.</span>
-                           </div>
-                           <div className="flex items-center gap-3">
-                               <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">2</span>
-                               <span>메뉴를 내려서 <strong className="text-indigo-600">'홈 화면에 추가'</strong>를 선택하세요.</span>
-                           </div>
-                       </>
-                   ) : (
-                       // Android / KakaoTalk In-App Instructions
-                       <>
-                           <div className="bg-amber-50 p-3 rounded-lg text-amber-800 text-xs mb-2 flex gap-2 border border-amber-100">
-                                <AlertTriangle size={16} className="shrink-0" />
-                                <div>카카오톡 등 앱 내부에서는 설치가 안 될 수 있습니다. <strong>Chrome(크롬)</strong>이나 <strong>삼성 인터넷</strong>으로 열어주세요.</div>
-                           </div>
-                           <div className="flex items-center gap-3">
-                               <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">1</span>
-                               <span>브라우저 우측 상단(또는 하단)의 <strong className="text-indigo-600">메뉴(⋮ 또는 ≡)</strong>를 누르세요.</span>
-                           </div>
-                           <div className="flex items-center gap-3">
-                               <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">2</span>
-                               <span><strong className="text-indigo-600">'앱 설치'</strong> 또는 <strong className="text-indigo-600">'홈 화면에 추가'</strong>를 선택하세요.</span>
-                           </div>
-                       </>
-                   )}
-                   
-                   <div className="mt-4 p-3 bg-indigo-50 rounded-xl text-indigo-700 font-bold text-center">
-                       설치 후 앱처럼 편하게 사용하세요! 🎉
+               <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+                   <div className="space-y-6 text-slate-600 text-sm">
+                       {isIOS ? (
+                           // iOS Instructions
+                           <>
+                               <div className="flex items-center gap-3">
+                                   <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">1</span>
+                                   <span>사파리(Safari) 브라우저 하단 <strong className="text-indigo-600">공유 버튼</strong>을 누르세요.</span>
+                               </div>
+                               <div className="flex items-center gap-3">
+                                   <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">2</span>
+                                   <span>메뉴를 내려서 <strong className="text-indigo-600">'홈 화면에 추가'</strong>를 선택하세요.</span>
+                               </div>
+                           </>
+                       ) : (
+                           // Android / KakaoTalk In-App Instructions
+                           <>
+                               <div className="bg-amber-50 p-3 rounded-lg text-amber-800 text-xs mb-4 flex gap-2 border border-amber-100 leading-relaxed">
+                                    <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                                    <div>카카오톡 등 앱 내부에서는 설치가 안 될 수 있습니다. <strong>Chrome(크롬)</strong>이나 <strong>삼성 인터넷</strong>으로 열어주세요.</div>
+                               </div>
+                               <div className="flex items-center gap-3">
+                                   <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">1</span>
+                                   <span>브라우저 우측 상단(또는 하단)의 <strong className="text-indigo-600">메뉴(⋮ 또는 ≡)</strong>를 누르세요.</span>
+                               </div>
+                               <div className="flex items-center gap-3">
+                                   <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">2</span>
+                                   <span><strong className="text-indigo-600">'앱 설치'</strong> 또는 <strong className="text-indigo-600">'홈 화면에 추가'</strong>를 선택하세요.</span>
+                               </div>
+                           </>
+                       )}
+                       
+                       <div className="mt-4 p-3 bg-indigo-50 rounded-xl text-indigo-700 font-bold text-center">
+                           설치 후 앱처럼 편하게 사용하세요! 🎉
+                       </div>
                    </div>
                </div>
            </div>
