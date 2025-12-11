@@ -51,16 +51,10 @@ export const AddIngredientModal: React.FC<Props> = ({ isOpen, onClose, onSave, i
         setExpandedCategory(Category.VEGETABLE); // Default expand vegetable
         setAddedItems(new Set()); // Reset visual selection
         setUserSelectedStorage(false);
+        // NOTE: Auto-focus removed to prevent mobile keyboard from covering the list
       }
     }
   }, [initialData, defaultStorage, isOpen]);
-
-  // Focus name input when modal opens
-  useEffect(() => {
-    if (isOpen && !initialData) {
-      setTimeout(() => nameInputRef.current?.focus(), 100);
-    }
-  }, [isOpen, initialData]);
 
   // Cleanup timer
   useEffect(() => {
@@ -128,6 +122,7 @@ export const AddIngredientModal: React.FC<Props> = ({ isOpen, onClose, onSave, i
       onSave(item);
       triggerSuccessFeedback();
       setName(''); // Clear name only, keep storage
+      // Only focus if user was manually typing
       nameInputRef.current?.focus();
     }
   };

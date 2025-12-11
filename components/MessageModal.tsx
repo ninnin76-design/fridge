@@ -17,7 +17,7 @@ export const MessageModal: React.FC<Props> = ({ isOpen, message, onClose, type =
       onClick={onClose}
     >
       <div 
-        className="bg-white rounded-2xl w-[90%] max-w-sm shadow-2xl overflow-hidden animate-bounce-in flex flex-col max-h-[60vh] my-auto" 
+        className="bg-white rounded-2xl w-[90%] max-w-sm shadow-2xl overflow-hidden animate-bounce-in flex flex-col max-h-[60vh]" 
         onClick={e => e.stopPropagation()}
       >
         <div className="p-6 text-center overflow-y-auto custom-scrollbar flex-1">

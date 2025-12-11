@@ -1,4 +1,3 @@
-
 import { Ingredient, Recipe, Category } from "../types";
 
 // [확장] 내장 데이터베이스: 한국인 인기 집밥 메뉴 100선 (완성판)
@@ -625,17 +624,24 @@ const KEYWORD_MAPPING: Record<string, string> = {
   '만두': '만두', '물만두': '만두', '군만두': '만두'
 };
 
-const cleanName = (name: string) => name.replace(/\(.*\)/g, '').replace(/[0-9]/g, '').trim();
+const cleanName = (name: string) => {
+  if (!name || typeof name !== 'string') return '';
+  return name.replace(/\(.*\)/g, '').replace(/[0-9]/g, '').trim();
+};
 
 // 검색 엔진
 export const searchPublicRecipes = async (ingredients: Ingredient[], type: 'MAIN' | 'SIDE' | 'SNACK'): Promise<Recipe[]> => {
     // 1. 내 재료 목록 정규화
     const myItems = new Set<string>();
-    ingredients.forEach(ing => {
-        const name = cleanName(ing.name);
-        myItems.add(name);
-        if (KEYWORD_MAPPING[name]) myItems.add(KEYWORD_MAPPING[name]);
-    });
+    if (ingredients && Array.isArray(ingredients)) {
+        ingredients.forEach(ing => {
+            if (!ing || !ing.name) return;
+            const name = cleanName(ing.name);
+            if (!name) return;
+            myItems.add(name);
+            if (KEYWORD_MAPPING[name]) myItems.add(KEYWORD_MAPPING[name]);
+        });
+    }
 
     // 2. 카테고리 필터링
     const candidates = INTERNAL_RECIPE_DB.filter(r => r.recipeType === type);
@@ -667,7 +673,7 @@ export const searchPublicRecipes = async (ingredients: Ingredient[], type: 'MAIN
 
     // 4. 정렬: 점수 높은 순 -> 랜덤 (점수가 같으면 섞음)
     const results = scoredRecipes
-        .filter(r => r.score > 0 || ingredients.length === 0) // 재료가 하나라도 맞거나, 냉장고가 비었으면 추천
+        .filter(r => r.score > 0 || !ingredients || ingredients.length === 0) // 재료가 하나라도 맞거나, 냉장고가 비었으면 추천
         .sort((a, b) => {
             const scoreDiff = b.score - a.score;
             if (scoreDiff !== 0) return scoreDiff;

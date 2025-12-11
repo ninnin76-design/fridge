@@ -753,6 +753,134 @@ export default function App() {
           </>
         )}
 
+        {view === 'RECIPES' && (
+          <div className="animate-fade-in">
+            {isGeneratingRecipes && recipes.length === 0 ? (
+              <div className="text-center py-20">
+                <div className="animate-bounce mb-4 text-4xl">
+                    {isUsingAI ? '🤖' : '🧑‍🍳'}
+                </div>
+                {recipes.length > 0 ? (
+                    <>
+                        <h2 className="text-xl font-bold text-slate-800 mb-2">
+                             메뉴를 다시 생각 중입니다!
+                        </h2>
+                        <p className="text-slate-500">조금만 기다려주세요...</p>
+                    </>
+                ) : (
+                    <>
+                        <h2 className="text-xl font-bold text-slate-800 mb-2">
+                            {isUsingAI ? 'AI 셰프가 고민 중!' : '공공 레시피를 찾는 중!'}
+                        </h2>
+                        <p className="text-slate-500">
+                            {isUsingAI 
+                                ? '당신의 재료로 창의적인 요리를 생각하고 있습니다...' 
+                                : '내장된 레시피 데이터베이스에서 맛있는 요리를 찾고 있습니다...'
+                            }
+                        </p>
+                    </>
+                )}
+              </div>
+            ) : recipes.length > 0 ? (
+              <div className="pb-10">
+                <div className="flex p-1 bg-gray-200 rounded-xl mb-6 gap-0.5 sticky top-[5.5rem] z-10 shadow-sm">
+                  {['MAIN', 'SIDE', 'SNACK'].map(tab => (
+                     <button
+                     key={tab}
+                     onClick={() => setActiveRecipeTab(tab as any)}
+                     className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-bold transition-all relative whitespace-nowrap ${
+                       activeRecipeTab === tab 
+                         ? 'bg-white text-indigo-700 shadow-sm' 
+                         : 'text-slate-500 hover:text-slate-700'
+                     }`}
+                   >
+                     {tab === 'MAIN' ? <ChefHat size={16} /> : tab === 'SIDE' ? <Utensils size={16} /> : <Coffee size={16} />} 
+                     {tab === 'MAIN' ? '메인요리' : tab === 'SIDE' ? '반찬' : '간식'}
+                     {/* Loading Indicators */}
+                     {(backgroundLoading && activeRecipeTab !== tab && (recipes.filter(r => r.recipeType === tab).length === 0)) || regeneratingTab === tab ? (
+                         <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-indigo-500 rounded-full animate-ping"></span>
+                     ) : null}
+                   </button>
+                  ))}
+                </div>
+
+                <div className="animate-fade-in min-h-[50vh]">
+                    {regeneratingTab === activeRecipeTab ? (
+                         <div className="flex flex-col items-center justify-center py-20 h-full animate-fade-in">
+                            <div className="animate-spin text-indigo-500 mb-4"><RefreshCw size={32}/></div>
+                            <h3 className="text-lg font-bold text-slate-700 text-center leading-relaxed">
+                                {isUsingAI ? 'AI 셰프가' : '다른 추천'}<br/>
+                                {activeRecipeTab === 'MAIN' ? '메인 요리' : activeRecipeTab === 'SIDE' ? '반찬' : '간식'} 메뉴를<br/>
+                                다시 찾고 있어요!
+                            </h3>
+                        </div>
+                    ) : displayRecipes.length > 0 ? (
+                        displayRecipes.map(recipe => (
+                            <RecipeCard 
+                                key={recipe.id} 
+                                recipe={recipe} 
+                                isSaved={isRecipeSaved(recipe.id)}
+                                onToggleSave={handleToggleSaveRecipe}
+                            />
+                        ))
+                    ) : (
+                         <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-200">
+                             {backgroundLoading ? (
+                                <>
+                                    <div className="animate-spin text-indigo-500 mb-2 mx-auto"><RefreshCw size={24}/></div>
+                                    <p className="text-slate-500 font-medium">메뉴를 불러오고 있습니다...</p>
+                                </>
+                             ) : (
+                                <>
+                                    <p className="text-slate-400 font-medium">추천된 메뉴가 없습니다.</p>
+                                    <p className="text-xs text-slate-300 mt-2">다른 카테고리를 확인해보세요.</p>
+                                </>
+                             )}
+                         </div>
+                    )}
+                </div>
+
+                {/* AI Disclaimer */}
+                <div className="my-8 p-4 bg-gray-50 rounded-xl border border-gray-100 flex items-start gap-3">
+                    <AlertTriangle size={18} className="text-amber-500 shrink-0 mt-0.5" />
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                        <strong>{isUsingAI ? 'AI 셰프 안내' : '추천 레시피 안내'}:</strong><br/>
+                        {isUsingAI 
+                            ? '생성형 AI(Gemini)가 추천한 레시피로, 실제 조리법과 다를 수 있습니다.' 
+                            : '검증된 인기 레시피 데이터베이스를 기반으로 추천된 결과입니다.'
+                        }
+                    </p>
+                </div>
+
+                {/* Regenerate Button - NOW FOR BOTH MODES */}
+                <div className="pt-4 pb-4 text-center">
+                    <button
+                        onClick={handleRegenerateCurrentCategory}
+                        disabled={regeneratingTab !== null}
+                        className="bg-white text-indigo-600 border border-indigo-200 px-6 py-3 rounded-xl font-bold text-sm shadow-sm hover:bg-indigo-50 active:scale-95 transition-all flex items-center gap-2 mx-auto disabled:opacity-50 disabled:active:scale-100 whitespace-nowrap"
+                    >
+                        <RefreshCw size={18} className={regeneratingTab ? 'animate-spin' : ''} />
+                        {regeneratingTab 
+                            ? '메뉴 다시 찾는 중...' 
+                            : isUsingAI 
+                                ? `${activeRecipeTab === 'MAIN' ? '메인' : activeRecipeTab === 'SIDE' ? '반찬' : '간식'} 다시 받기`
+                                : `${activeRecipeTab === 'MAIN' ? '메인' : activeRecipeTab === 'SIDE' ? '반찬' : '간식'} 다시 검색`
+                        }
+                    </button>
+                    <p className="text-xs text-slate-400 mt-2">
+                        {isUsingAI ? '현재 탭의 메뉴를 AI에게 다시 요청합니다.' : '현재 재료로 만들 수 있는 다른 메뉴를 찾아봅니다.'}
+                    </p>
+                </div>
+                
+              </div>
+            ) : (
+              <div className="text-center py-20">
+                <p className="text-slate-500">추천할 수 있는 레시피가 없어요 😭<br/>재료를 더 등록해보세요!</p>
+              </div>
+            )}
+          </div>
+        )}
+
         {view === 'INVENTORY' && (
           <button
             onClick={() => {

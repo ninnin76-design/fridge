@@ -45,7 +45,7 @@ export const ApiKeyModal: React.FC<Props> = ({ isOpen, onClose, onSave, currentK
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white rounded-2xl w-[90%] max-w-sm shadow-2xl overflow-hidden flex flex-col max-h-[75vh] my-auto">
+      <div className="bg-white rounded-2xl w-[90%] max-w-sm shadow-2xl overflow-hidden flex flex-col max-h-[75vh]">
         <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 flex justify-between items-center text-white shrink-0">
           <h2 className="text-lg font-bold flex items-center gap-2">
             <CustomKeyIcon size={20} /> API 키 설정
