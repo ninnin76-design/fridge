@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { ArrowLeft, Plus, X, Sparkles } from 'lucide-react';
 import { SaltShakerIcon } from './SaltShakerIcon';
@@ -14,7 +13,6 @@ interface Props {
 const COMMON_SUGGESTIONS = Array.from(new Set([
   ...DEFAULT_BASIC_SEASONINGS,
   // Add common staples that are NOT in the default list but user might want
-  "파", "대파", "쪽파", "양파", "청양고추", // Veggies often treated as seasoning
   "굴소스", "칠리소스", "머스타드", "와사비", "겨자", 
   "쌈장", "초고추장", "매실청", "다시다", "미원", "치킨스톡",
   "버터", "치즈", "카레가루", "짜장가루", "파슬리", "바질", 

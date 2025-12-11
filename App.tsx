@@ -52,7 +52,7 @@ export default function App() {
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [isInstallable, setIsInstallable] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
-  const [isInstalling, setIsInstalling] = useState(false); // Track active installation status for button feedback
+  const [isInstalling, setIsInstalling] = useState(false); // Track active installation status
 
   // Alert Modal State
   const [alertState, setAlertState] = useState<{ isOpen: boolean; message: string; onConfirm?: () => void }>({
@@ -433,11 +433,8 @@ export default function App() {
           console.error("Error generating recipes:", error);
           setIsGeneratingRecipes(false);
           
-          if (useAI) {
-              showAlert('AI 연결에 실패했습니다.\nAPI 키 설정을 확인해주세요.');
-          } else {
-              showAlert("레시피를 불러오는 중 오류가 발생했습니다.");
-          }
+          // [Modified] Display detailed error message in alert
+          showAlert(`AI 연결에 실패했습니다.\n\n${error.message}`);
       }
   };
 
@@ -489,7 +486,8 @@ export default function App() {
       } catch (e: any) {
           console.error("Regeneration failed", e);
           setRegeneratingTab(null); // Clear loading state immediately on error
-          showAlert("다시 추천받기에 실패했습니다.");
+          // [Modified] Show detailed error
+          showAlert(`다시 추천받기에 실패했습니다.\n\n${e.message}`);
       }
       
       setRegeneratingTab(null);
@@ -667,6 +665,15 @@ export default function App() {
         <div className="flex gap-1 bg-slate-100 p-1 rounded-full shrink-0">
           {view === 'INVENTORY' && (
             <div className="flex gap-0.5">
+                {isInstallable && (
+                    <button 
+                      onClick={handleInstallClick}
+                      className="bg-indigo-600 p-1.5 rounded-full text-white shadow-sm hover:bg-indigo-700 transition-colors animate-pulse"
+                      title="앱 설치(다운로드)"
+                    >
+                      <Download size={16} />
+                    </button>
+                )}
                 <button 
                   onClick={handleShare}
                   className="bg-white p-1.5 rounded-full text-slate-600 shadow-sm hover:text-indigo-600 transition-colors"
@@ -1092,26 +1099,23 @@ export default function App() {
 
       </main>
 
-      {/* Install App Banner (Bottom) */}
-      {isInstallable && (
-          <div className="fixed bottom-0 left-0 right-0 z-[80] bg-white border-t border-slate-100 p-4 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] animate-fade-in flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                  <div className="bg-indigo-600 p-2.5 rounded-xl text-white shadow-sm">
-                      {isInstalling ? <Loader2 size={20} className="animate-spin" /> : <Smartphone size={20} />}
-                  </div>
-                  <div>
-                      <h4 className="font-bold text-slate-900 text-sm">엄마의 냉장고 앱 설치</h4>
-                      <p className="text-xs text-slate-500">더 빠르고 편하게 사용하세요!</p>
-                  </div>
-              </div>
-              <button 
-                  onClick={handleInstallClick}
-                  disabled={isInstalling}
-                  className="bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-bold text-sm shadow-md active:scale-95 transition-all whitespace-nowrap disabled:opacity-70 disabled:active:scale-100"
-              >
-                  {isInstalling ? '설치 중...' : '앱 설치하기'}
-              </button>
-          </div>
+      {/* Installing Overlay Modal */}
+      {isInstalling && (
+        <div className="fixed inset-0 z-[10000] flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in text-white">
+            <div className="bg-white/10 p-8 rounded-full mb-6 relative">
+                 <div className="absolute inset-0 bg-indigo-500 rounded-full animate-ping opacity-20"></div>
+                 <Loader2 size={48} className="text-white animate-spin" />
+            </div>
+            <h2 className="text-2xl font-bold mb-2">앱을 설치하고 있습니다</h2>
+            <p className="text-slate-300 text-sm">잠시만 기다려주세요...</p>
+            {/* Fallback close button in case appinstalled doesn't fire */}
+            <button 
+                onClick={() => setIsInstalling(false)} 
+                className="mt-8 text-xs text-slate-400 hover:text-white underline"
+            >
+                설치 화면 닫기 (오래 걸릴 경우)
+            </button>
+        </div>
       )}
 
       {/* Universal Install Guide Modal */}

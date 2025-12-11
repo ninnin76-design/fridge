@@ -1,8 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { Ingredient, Recipe, StorageType, Category } from "../types";
 
-// [변경] 더 안정적이고 널리 사용 가능한 모델로 변경
-const MODEL_NAME = "gemini-1.5-flash";
+// [변경] 최신 실험 버전 사용 (가장 성능이 좋고 호환성이 높음)
+const MODEL_NAME = "gemini-2.0-flash-exp";
 
 // Helper to clean JSON string if markdown blocks are present
 function cleanJsonString(text: string): string {
@@ -36,16 +36,18 @@ export const suggestSpecificRecipes = async (
   if (ingredients.length === 0) return [];
   
   try {
-    const finalApiKey = apiKey || process.env.API_KEY;
+    const rawKey = apiKey || process.env.API_KEY || '';
+    const finalApiKey = rawKey.trim(); // 공백 제거
+
     if (!finalApiKey) {
-        throw new Error("API Key가 설정되지 않았습니다. 설정 메뉴에서 키를 입력해주세요.");
+        throw new Error("API Key가 설정되지 않았습니다.");
     }
+
     const ai = new GoogleGenAI({ apiKey: finalApiKey });
 
     const inventoryDescription = generateInventoryDescription(ingredients);
     const typeLabel = type === 'MAIN' ? '메인 요리 (MAIN)' : type === 'SIDE' ? '반찬 (SIDE)' : '간식 (SNACK)';
 
-    // 프롬프트에 JSON 구조를 명시적으로 포함 (Schema 대신 프롬프트 엔지니어링 사용)
     const prompt = `
       당신은 아이들을 위한 전문 요리사입니다. 내 냉장고 재료를 활용해 "${typeLabel}" 메뉴를 ${count}가지 추천해주세요.
       
@@ -65,7 +67,7 @@ export const suggestSpecificRecipes = async (
       - 창의적이고 맛있는 레시피를 제안해주세요.
 
       [출력 데이터 형식 (JSON Array)]
-      다음과 같은 JSON 배열 형식으로만 응답해주세요. 마크다운이나 다른 설명은 제외하세요.
+      반드시 아래와 같은 JSON 배열 형식으로만 응답해주세요. 마크다운(backticks)이나 추가 설명 없이 순수 JSON 텍스트만 보내세요.
       [
         {
           "id": "unique_string_id",
@@ -85,15 +87,14 @@ export const suggestSpecificRecipes = async (
       model: MODEL_NAME,
       contents: prompt,
       config: {
-        responseMimeType: "application/json",
-        // responseSchema를 제거하여 호환성 높임 (Flash 모델에서 스키마 오류 방지)
+        // responseMimeType을 제거하여 400 에러 방지 (순수 텍스트로 받고 파싱)
         temperature: 0.7, 
       },
     });
 
     const text = response.text;
     if (!text) {
-        throw new Error("AI가 응답하지 않았습니다. (Empty Response)");
+        throw new Error("AI 응답이 비어있습니다.");
     }
     
     let rawRecipes;
@@ -101,7 +102,9 @@ export const suggestSpecificRecipes = async (
         rawRecipes = JSON.parse(cleanJsonString(text)) as Partial<Recipe>[];
     } catch (e) {
         console.error("JSON Parse Error:", text);
-        throw new Error("AI 응답 형식이 올바르지 않습니다.");
+        // JSON 파싱 실패 시, 텍스트가 조금 깨졌을 수 있으므로 한 번 더 시도하거나 에러 처리
+        // 여기서는 에러를 던져서 fallback으로 넘어가게 함
+        throw new Error("AI 응답 형식이 올바르지 않습니다. (JSON Parsing Failed)");
     }
     
     if (!Array.isArray(rawRecipes)) {
@@ -123,46 +126,41 @@ export const suggestSpecificRecipes = async (
   } catch (error: any) {
     console.error(`AI Generation Failed:`, error);
     
-    // 에러 메시지 상세화
-    let errorMessage = "AI 연결에 실패했습니다.";
-    if (error.message) {
-        if (error.message.includes("403") || error.message.includes("API key")) {
-            errorMessage = "API 키 오류: 권한이 없거나 키가 잘못되었습니다. Google AI Studio에서 'Generative Language API'가 활성화되어 있는지 확인해주세요.";
-        } else if (error.message.includes("429")) {
-            errorMessage = "사용량이 초과되었습니다. 잠시 후 다시 시도해주세요.";
-        } else if (error.message.includes("404") || error.message.includes("not found")) {
-            errorMessage = "AI 모델을 찾을 수 없습니다.";
-        } else {
-            errorMessage = `오류: ${error.message}`;
-        }
+    let errorMessage = "알 수 없는 오류가 발생했습니다.";
+    const msg = error.message || "";
+
+    if (msg.includes("403") || msg.includes("API key")) {
+        errorMessage = "API 키 오류 (403): 권한이 없거나 키가 잘못되었습니다.\n구글 AI Studio에서 해당 키에 'Generative Language API'가 활성화되었는지 확인해주세요.";
+    } else if (msg.includes("400") || msg.includes("INVALID_ARGUMENT")) {
+        errorMessage = "요청 오류 (400): AI 모델이 요청을 이해하지 못했습니다. 잠시 후 다시 시도해주세요.";
+    } else if (msg.includes("429")) {
+        errorMessage = "사용량 초과 (429): 잠시 후 다시 시도해주세요.";
+    } else if (msg.includes("404") || msg.includes("not found")) {
+        errorMessage = `모델 오류 (404): '${MODEL_NAME}' 모델을 찾을 수 없습니다.`;
+    } else {
+        errorMessage = `오류 내용: ${msg}`;
     }
+    
     throw new Error(errorMessage);
   }
 };
 
 export const parseInventoryFromImage = async (base64Image: string, apiKey?: string): Promise<Ingredient[]> => {
   try {
-    const finalApiKey = apiKey || process.env.API_KEY;
+    const rawKey = apiKey || process.env.API_KEY || '';
+    const finalApiKey = rawKey.trim();
+    
     if (!finalApiKey) {
         throw new Error("API 키가 없습니다.");
     }
     const ai = new GoogleGenAI({ apiKey: finalApiKey });
 
     const prompt = `
-      Analyze this image of a refrigerator inventory list/report.
-      Extract all the ingredients listed.
-      
-      For each item, identify:
-      1. Name (Korean)
-      2. Storage Location (Infer based on the section header in the image if possible. Options: 'FRIDGE', 'FREEZER', 'PANTRY'. Default to 'FRIDGE' if unsure.)
-      3. Category (Infer based on the item name. Options: 'VEGETABLE', 'FRUIT', 'MEAT', 'FISH', 'DAIRY', 'GRAIN', 'PROCESSED', 'ETC'. Default to 'ETC'.)
-      
-      Return a JSON array of ingredients. Quantity information is NOT needed.
-      
-      Example Output Format:
+      Analyze this image of a refrigerator inventory list.
+      Extract ingredients.
+      Return JSON array:
       [
-        { "name": "사과", "storage": "FRIDGE", "category": "FRUIT" },
-        { "name": "김치", "storage": "FRIDGE", "category": "VEGETABLE" }
+        { "name": "Name", "storage": "FRIDGE" | "FREEZER" | "PANTRY", "category": "VEGETABLE" | "FRUIT" | "MEAT" | "FISH" | "DAIRY" | "GRAIN" | "PROCESSED" | "ETC" }
       ]
     `;
 
@@ -182,8 +180,6 @@ export const parseInventoryFromImage = async (base64Image: string, apiKey?: stri
         ]
       },
       config: {
-        responseMimeType: "application/json",
-        // responseSchema Removed for stability
         temperature: 0.4,
       },
     });
