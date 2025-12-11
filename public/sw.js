@@ -1,6 +1,7 @@
-// Version update - Change this when you deploy a new version to force update
-const CACHE_NAME = 'moms-fridge-v3';
+// Version update to force refresh
+const CACHE_NAME = 'moms-fridge-v4';
 
+// Initial core assets to cache
 const urlsToCache = [
   '/',
   '/index.html',
@@ -10,12 +11,13 @@ const urlsToCache = [
 
 // Install: Cache core assets
 self.addEventListener('install', (event) => {
-  // Force this new service worker to become the active one, bypassing the waiting state
+  // Activate new SW immediately
   self.skipWaiting();
 
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
+        console.log('Opened cache');
         return cache.addAll(urlsToCache);
       })
   );
@@ -23,8 +25,9 @@ self.addEventListener('install', (event) => {
 
 // Activate: Clean up old caches
 self.addEventListener('activate', (event) => {
-  // Take control of all clients immediately
-  event.waitUntil(clients.claim());
+  // NOTE: Removed clients.claim() to prevent "White Screen" on first load.
+  // The SW will take control on the next page reload, ensuring the first load
+  // completes without interruption.
 
   const cacheWhitelist = [CACHE_NAME];
   event.waitUntil(
@@ -41,12 +44,12 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: Network First for HTML, Cache First for others
+// Fetch: Network First for HTML, Cache First (with Dynamic Caching) for Assets
 self.addEventListener('fetch', (event) => {
   const request = event.request;
 
   // 1. Navigation requests (HTML pages) -> Network First
-  // This ensures the user always gets the latest index.html with correct JS paths
+  // Ensures user gets the latest index.html (which points to new JS hashes)
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
@@ -66,15 +69,32 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. Asset requests (JS, CSS, Images) -> Cache First
-  // Stale-While-Revalidate strategy could also be used, but Cache First is safer for hashed assets
+  // 2. Asset requests (JS, CSS, Images, etc.) -> Cache First, then Network & Cache
   event.respondWith(
     caches.match(request)
-      .then((response) => {
-        if (response) {
-          return response;
+      .then((cachedResponse) => {
+        // Return cached response if found
+        if (cachedResponse) {
+          return cachedResponse;
         }
-        return fetch(request);
+
+        // Otherwise fetch from network
+        return fetch(request).then((networkResponse) => {
+          // Check if valid response (basic or cors for CDNs)
+          if (!networkResponse || networkResponse.status !== 200 || (networkResponse.type !== 'basic' && networkResponse.type !== 'cors')) {
+            return networkResponse;
+          }
+
+          // Clone response to save to cache
+          const responseToCache = networkResponse.clone();
+
+          caches.open(CACHE_NAME).then((cache) => {
+            // Dynamic Caching: Save fetched asset for next time
+            cache.put(request, responseToCache);
+          });
+
+          return networkResponse;
+        });
       })
   );
 });

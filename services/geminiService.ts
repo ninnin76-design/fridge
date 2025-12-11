@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type, Schema } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { Ingredient, Recipe, StorageType, Category } from "../types";
 
 // [변경] 더 안정적이고 널리 사용 가능한 모델로 변경
@@ -7,6 +7,7 @@ const MODEL_NAME = "gemini-1.5-flash";
 // Helper to clean JSON string if markdown blocks are present
 function cleanJsonString(text: string): string {
   let cleaned = text.trim();
+  // Remove markdown code blocks (```json ... ```)
   if (cleaned.startsWith('```json')) {
     cleaned = cleaned.replace(/^```json/, '').replace(/```$/, '');
   } else if (cleaned.startsWith('```')) {
@@ -44,6 +45,7 @@ export const suggestSpecificRecipes = async (
     const inventoryDescription = generateInventoryDescription(ingredients);
     const typeLabel = type === 'MAIN' ? '메인 요리 (MAIN)' : type === 'SIDE' ? '반찬 (SIDE)' : '간식 (SNACK)';
 
+    // 프롬프트에 JSON 구조를 명시적으로 포함 (Schema 대신 프롬프트 엔지니어링 사용)
     const prompt = `
       당신은 아이들을 위한 전문 요리사입니다. 내 냉장고 재료를 활용해 "${typeLabel}" 메뉴를 ${count}가지 추천해주세요.
       
@@ -62,47 +64,30 @@ export const suggestSpecificRecipes = async (
       - 아이들이 좋아할 만한 메뉴 위주로 선정해주세요.
       - 창의적이고 맛있는 레시피를 제안해주세요.
 
-      [출력 형식]
-      JSON 배열로 응답하세요. 모든 항목의 recipeType은 반드시 "${type}"이어야 합니다.
+      [출력 데이터 형식 (JSON Array)]
+      다음과 같은 JSON 배열 형식으로만 응답해주세요. 마크다운이나 다른 설명은 제외하세요.
+      [
+        {
+          "id": "unique_string_id",
+          "name": "요리 이름",
+          "description": "요리에 대한 짧고 맛있는 설명",
+          "emoji": "요리를 대표하는 이모지 1개",
+          "recipeType": "${type}",
+          "ingredientsUsed": ["사용된 보유 재료 이름1", "사용된 보유 재료 이름2"],
+          "missingIngredients": ["마트에서 사야할 재료1", "마트에서 사야할 재료2"],
+          "instructions": ["조리 과정 1", "조리 과정 2", "조리 과정 3"],
+          "cookingTime": "예상 조리 시간 (예: 20분)"
+        }
+      ]
     `;
-
-    const schema: Schema = {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          id: { type: Type.STRING },
-          name: { type: Type.STRING },
-          description: { type: Type.STRING },
-          emoji: { type: Type.STRING },
-          recipeType: { type: Type.STRING, enum: [type] },
-          ingredientsUsed: { 
-            type: Type.ARRAY, 
-            items: { type: Type.STRING },
-            description: "List of ingredients from my inventory used in this recipe"
-          },
-          missingIngredients: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING },
-            description: "Raw ingredients needed for shopping that are NOT in my inventory"
-          },
-          instructions: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING }
-          },
-          cookingTime: { type: Type.STRING }
-        },
-        required: ["name", "description", "emoji", "recipeType", "ingredientsUsed", "instructions", "cookingTime"]
-      }
-    };
 
     const response = await ai.models.generateContent({
       model: MODEL_NAME,
       contents: prompt,
       config: {
         responseMimeType: "application/json",
-        responseSchema: schema,
-        temperature: 0.8, 
+        // responseSchema를 제거하여 호환성 높임 (Flash 모델에서 스키마 오류 방지)
+        temperature: 0.7, 
       },
     });
 
@@ -119,6 +104,10 @@ export const suggestSpecificRecipes = async (
         throw new Error("AI 응답 형식이 올바르지 않습니다.");
     }
     
+    if (!Array.isArray(rawRecipes)) {
+        throw new Error("AI 응답이 목록 형식이 아닙니다.");
+    }
+
     return rawRecipes.map((r, index) => ({
       id: r.id || `ai-${type}-${Date.now()}-${index}`,
       name: r.name || 'AI 추천 메뉴',
@@ -138,7 +127,7 @@ export const suggestSpecificRecipes = async (
     let errorMessage = "AI 연결에 실패했습니다.";
     if (error.message) {
         if (error.message.includes("403") || error.message.includes("API key")) {
-            errorMessage = "API 키가 올바르지 않거나 권한이 없습니다.";
+            errorMessage = "API 키 오류: 권한이 없거나 키가 잘못되었습니다. Google AI Studio에서 'Generative Language API'가 활성화되어 있는지 확인해주세요.";
         } else if (error.message.includes("429")) {
             errorMessage = "사용량이 초과되었습니다. 잠시 후 다시 시도해주세요.";
         } else if (error.message.includes("404") || error.message.includes("not found")) {
@@ -169,25 +158,18 @@ export const parseInventoryFromImage = async (base64Image: string, apiKey?: stri
       3. Category (Infer based on the item name. Options: 'VEGETABLE', 'FRUIT', 'MEAT', 'FISH', 'DAIRY', 'GRAIN', 'PROCESSED', 'ETC'. Default to 'ETC'.)
       
       Return a JSON array of ingredients. Quantity information is NOT needed.
+      
+      Example Output Format:
+      [
+        { "name": "사과", "storage": "FRIDGE", "category": "FRUIT" },
+        { "name": "김치", "storage": "FRIDGE", "category": "VEGETABLE" }
+      ]
     `;
 
     const imagePart = {
       inlineData: {
         mimeType: "image/jpeg",
         data: base64Image
-      }
-    };
-
-    const schema: Schema = {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          name: { type: Type.STRING },
-          storage: { type: Type.STRING, enum: ['FRIDGE', 'FREEZER', 'PANTRY'] },
-          category: { type: Type.STRING, enum: ['VEGETABLE', 'FRUIT', 'MEAT', 'FISH', 'DAIRY', 'GRAIN', 'PROCESSED', 'SAUCE', 'ETC'] }
-        },
-        required: ["name", "storage", "category"]
       }
     };
 
@@ -201,7 +183,7 @@ export const parseInventoryFromImage = async (base64Image: string, apiKey?: stri
       },
       config: {
         responseMimeType: "application/json",
-        responseSchema: schema,
+        // responseSchema Removed for stability
         temperature: 0.4,
       },
     });
