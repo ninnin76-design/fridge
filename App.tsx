@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Snowflake, Layers, ChefHat, Search, ArrowLeft, Package, ClipboardList, RefreshCw, ShoppingCart, Heart, Coffee, Utensils, CheckSquare, List, Users, AlertTriangle, Sparkles, Share2, Download, X, MoreVertical, Globe, Loader2 } from 'lucide-react';
+import { Plus, Snowflake, Layers, ChefHat, Search, ArrowLeft, Package, ClipboardList, RefreshCw, ShoppingCart, Heart, Coffee, Utensils, CheckSquare, List, Users, AlertTriangle, Sparkles, Share2, Download, X, MoreVertical, Globe, Loader2, Smartphone } from 'lucide-react';
 import { Ingredient, StorageType, Recipe, Category } from './types';
 import { DEFAULT_BASIC_SEASONINGS, CATEGORY_LABELS, CATEGORY_COLORS, CATEGORY_EMOJIS } from './constants';
 import { IngredientItem } from './components/IngredientItem';
@@ -52,7 +52,7 @@ export default function App() {
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [isInstallable, setIsInstallable] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
-  const [isInstalling, setIsInstalling] = useState(false); // Track active installation status
+  const [isInstalling, setIsInstalling] = useState(false); // Track active installation status for button feedback
 
   // Alert Modal State
   const [alertState, setAlertState] = useState<{ isOpen: boolean; message: string; onConfirm?: () => void }>({
@@ -226,6 +226,40 @@ export default function App() {
 
   const isRecipeSaved = (id: string) => {
       return Array.isArray(savedRecipes) && savedRecipes.some(r => r.id === id);
+  };
+
+  // --- Factory Reset Handler ---
+  const handleFactoryReset = async () => {
+    if (window.confirm("모든 데이터(재료, 레시피, 설정)가 영구적으로 삭제됩니다.\n정말 초기화 하시겠습니까?")) {
+        try {
+            // 1. Clear IndexedDB
+            await db.deleteDatabase();
+            
+            // 2. Clear LocalStorage
+            localStorage.clear();
+            
+            // 3. Clear Cache API
+            if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                await Promise.all(cacheNames.map(name => caches.delete(name)));
+            }
+            
+            // 4. Unregister Service Workers
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                for (const registration of registrations) {
+                    await registration.unregister();
+                }
+            }
+            
+            // 5. Alert and Reload
+            alert("초기화되었습니다. 앱을 재시작합니다.");
+            window.location.reload();
+        } catch (e) {
+            console.error("Factory Reset Error:", e);
+            alert("초기화 중 오류가 발생했습니다. 앱을 완전히 삭제하고 다시 설치해주세요.");
+        }
+    }
   };
 
   // Import Data Handler
@@ -566,7 +600,7 @@ export default function App() {
 
     // 2. Native Install Prompt (Chrome/Edge/Samsung Internet)
     if (deferredPrompt) {
-      // Trigger the loading overlay immediately
+      // Trigger local loading state for button feedback
       setIsInstalling(true);
       
       try {
@@ -574,10 +608,10 @@ export default function App() {
         const { outcome } = await deferredPrompt.userChoice;
         
         if (outcome === 'accepted') {
-           // User accepted, keep loading screen until 'appinstalled' fires
+           // User accepted, UI stays in 'installing' state until 'appinstalled' fires
            setDeferredPrompt(null);
         } else {
-           // User dismissed, hide loading screen
+           // User dismissed, revert UI
            setIsInstalling(false);
         }
       } catch (e) {
@@ -633,15 +667,6 @@ export default function App() {
         <div className="flex gap-1 bg-slate-100 p-1 rounded-full shrink-0">
           {view === 'INVENTORY' && (
             <div className="flex gap-0.5">
-                {isInstallable && (
-                    <button 
-                      onClick={handleInstallClick}
-                      className="bg-indigo-600 p-1.5 rounded-full text-white shadow-sm hover:bg-indigo-700 transition-colors animate-pulse"
-                      title="앱 설치(다운로드)"
-                    >
-                      <Download size={16} />
-                    </button>
-                )}
                 <button 
                   onClick={handleShare}
                   className="bg-white p-1.5 rounded-full text-slate-600 shadow-sm hover:text-indigo-600 transition-colors"
@@ -1067,23 +1092,26 @@ export default function App() {
 
       </main>
 
-      {/* Installing Overlay Modal */}
-      {isInstalling && (
-        <div className="fixed inset-0 z-[10000] flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in text-white">
-            <div className="bg-white/10 p-8 rounded-full mb-6 relative">
-                 <div className="absolute inset-0 bg-indigo-500 rounded-full animate-ping opacity-20"></div>
-                 <Loader2 size={48} className="text-white animate-spin" />
-            </div>
-            <h2 className="text-2xl font-bold mb-2">앱을 설치하고 있습니다</h2>
-            <p className="text-slate-300 text-sm">잠시만 기다려주세요...</p>
-            {/* Fallback close button in case appinstalled doesn't fire */}
-            <button 
-                onClick={() => setIsInstalling(false)} 
-                className="mt-8 text-xs text-slate-400 hover:text-white underline"
-            >
-                설치 화면 닫기 (오래 걸릴 경우)
-            </button>
-        </div>
+      {/* Install App Banner (Bottom) */}
+      {isInstallable && (
+          <div className="fixed bottom-0 left-0 right-0 z-[80] bg-white border-t border-slate-100 p-4 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] animate-fade-in flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                  <div className="bg-indigo-600 p-2.5 rounded-xl text-white shadow-sm">
+                      {isInstalling ? <Loader2 size={20} className="animate-spin" /> : <Smartphone size={20} />}
+                  </div>
+                  <div>
+                      <h4 className="font-bold text-slate-900 text-sm">엄마의 냉장고 앱 설치</h4>
+                      <p className="text-xs text-slate-500">더 빠르고 편하게 사용하세요!</p>
+                  </div>
+              </div>
+              <button 
+                  onClick={handleInstallClick}
+                  disabled={isInstalling}
+                  className="bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-bold text-sm shadow-md active:scale-95 transition-all whitespace-nowrap disabled:opacity-70 disabled:active:scale-100"
+              >
+                  {isInstalling ? '설치 중...' : '앱 설치하기'}
+              </button>
+          </div>
       )}
 
       {/* Universal Install Guide Modal */}

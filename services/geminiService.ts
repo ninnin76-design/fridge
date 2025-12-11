@@ -1,8 +1,8 @@
-
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { Ingredient, Recipe, StorageType, Category } from "../types";
 
-const MODEL_NAME = "gemini-2.5-flash";
+// [변경] 더 안정적이고 널리 사용 가능한 모델로 변경
+const MODEL_NAME = "gemini-1.5-flash";
 
 // Helper to clean JSON string if markdown blocks are present
 function cleanJsonString(text: string): string {
@@ -37,7 +37,7 @@ export const suggestSpecificRecipes = async (
   try {
     const finalApiKey = apiKey || process.env.API_KEY;
     if (!finalApiKey) {
-        throw new Error("API Key is missing. Please set your API key in settings.");
+        throw new Error("API Key가 설정되지 않았습니다. 설정 메뉴에서 키를 입력해주세요.");
     }
     const ai = new GoogleGenAI({ apiKey: finalApiKey });
 
@@ -108,10 +108,16 @@ export const suggestSpecificRecipes = async (
 
     const text = response.text;
     if (!text) {
-        throw new Error("No response text from AI");
+        throw new Error("AI가 응답하지 않았습니다. (Empty Response)");
     }
     
-    const rawRecipes = JSON.parse(cleanJsonString(text)) as Partial<Recipe>[];
+    let rawRecipes;
+    try {
+        rawRecipes = JSON.parse(cleanJsonString(text)) as Partial<Recipe>[];
+    } catch (e) {
+        console.error("JSON Parse Error:", text);
+        throw new Error("AI 응답 형식이 올바르지 않습니다.");
+    }
     
     return rawRecipes.map((r, index) => ({
       id: r.id || `ai-${type}-${Date.now()}-${index}`,
@@ -127,7 +133,21 @@ export const suggestSpecificRecipes = async (
 
   } catch (error: any) {
     console.error(`AI Generation Failed:`, error);
-    throw error;
+    
+    // 에러 메시지 상세화
+    let errorMessage = "AI 연결에 실패했습니다.";
+    if (error.message) {
+        if (error.message.includes("403") || error.message.includes("API key")) {
+            errorMessage = "API 키가 올바르지 않거나 권한이 없습니다.";
+        } else if (error.message.includes("429")) {
+            errorMessage = "사용량이 초과되었습니다. 잠시 후 다시 시도해주세요.";
+        } else if (error.message.includes("404") || error.message.includes("not found")) {
+            errorMessage = "AI 모델을 찾을 수 없습니다.";
+        } else {
+            errorMessage = `오류: ${error.message}`;
+        }
+    }
+    throw new Error(errorMessage);
   }
 };
 
@@ -135,7 +155,7 @@ export const parseInventoryFromImage = async (base64Image: string, apiKey?: stri
   try {
     const finalApiKey = apiKey || process.env.API_KEY;
     if (!finalApiKey) {
-        throw new Error("API Key is missing. Please set your API key in settings.");
+        throw new Error("API 키가 없습니다.");
     }
     const ai = new GoogleGenAI({ apiKey: finalApiKey });
 
