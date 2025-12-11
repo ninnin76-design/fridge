@@ -1,8 +1,8 @@
 import { GoogleGenAI } from "@google/genai";
 import { Ingredient, Recipe, StorageType, Category } from "../types";
 
-// [변경] 최신 실험 버전 사용 (가장 성능이 좋고 호환성이 높음)
-const MODEL_NAME = "gemini-2.0-flash-exp";
+// [변경] 시스템 가이드라인에 따른 최신 모델 적용
+const MODEL_NAME = "gemini-2.5-flash";
 
 // Helper to clean JSON string if markdown blocks are present
 function cleanJsonString(text: string): string {
@@ -102,8 +102,6 @@ export const suggestSpecificRecipes = async (
         rawRecipes = JSON.parse(cleanJsonString(text)) as Partial<Recipe>[];
     } catch (e) {
         console.error("JSON Parse Error:", text);
-        // JSON 파싱 실패 시, 텍스트가 조금 깨졌을 수 있으므로 한 번 더 시도하거나 에러 처리
-        // 여기서는 에러를 던져서 fallback으로 넘어가게 함
         throw new Error("AI 응답 형식이 올바르지 않습니다. (JSON Parsing Failed)");
     }
     
@@ -127,18 +125,20 @@ export const suggestSpecificRecipes = async (
     console.error(`AI Generation Failed:`, error);
     
     let errorMessage = "알 수 없는 오류가 발생했습니다.";
-    const msg = error.message || "";
+    const msg = (error.message || "").toLowerCase();
 
-    if (msg.includes("403") || msg.includes("API key")) {
-        errorMessage = "API 키 오류 (403): 권한이 없거나 키가 잘못되었습니다.\n구글 AI Studio에서 해당 키에 'Generative Language API'가 활성화되었는지 확인해주세요.";
-    } else if (msg.includes("400") || msg.includes("INVALID_ARGUMENT")) {
-        errorMessage = "요청 오류 (400): AI 모델이 요청을 이해하지 못했습니다. 잠시 후 다시 시도해주세요.";
+    if (msg.includes("403") || msg.includes("not enabled")) {
+        errorMessage = "🚨 API 권한 오류 (403)\n\n구글 AI Studio 또는 Cloud Console에서 'Generative Language API'가 활성화되지 않았습니다.\n해당 프로젝트에서 API 사용 설정을 켜주세요.";
+    } else if (msg.includes("api key")) {
+        errorMessage = "🚨 API 키 오류\n\n입력하신 키가 올바르지 않습니다. 공백이 포함되었거나 만료된 키인지 확인해주세요.";
+    } else if (msg.includes("400") || msg.includes("invalid_argument")) {
+        errorMessage = "요청 오류 (400)\nAI 모델이 요청을 처리할 수 없습니다. 잠시 후 다시 시도해주세요.";
     } else if (msg.includes("429")) {
-        errorMessage = "사용량 초과 (429): 잠시 후 다시 시도해주세요.";
+        errorMessage = "사용량 초과 (429)\n무료 사용량을 모두 소진했습니다. 잠시 후 다시 시도해주세요.";
     } else if (msg.includes("404") || msg.includes("not found")) {
-        errorMessage = `모델 오류 (404): '${MODEL_NAME}' 모델을 찾을 수 없습니다.`;
+        errorMessage = `모델 오류 (404)\n'${MODEL_NAME}' 모델을 찾을 수 없거나 접근 권한이 없습니다.`;
     } else {
-        errorMessage = `오류 내용: ${msg}`;
+        errorMessage = `오류 내용: ${error.message}`;
     }
     
     throw new Error(errorMessage);
