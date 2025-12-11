@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Snowflake, Layers, ChefHat, Search, ArrowLeft, Package, ClipboardList, RefreshCw, ShoppingCart, Heart, Coffee, Utensils, CheckSquare, List, Users, AlertTriangle, Sparkles, Share2, Download, X, MoreVertical, Globe } from 'lucide-react';
+import { Plus, Snowflake, Layers, ChefHat, Search, ArrowLeft, Package, ClipboardList, RefreshCw, ShoppingCart, Heart, Coffee, Utensils, CheckSquare, List, Users, AlertTriangle, Sparkles, Share2, Download, X, MoreVertical, Globe, Loader2 } from 'lucide-react';
 import { Ingredient, StorageType, Recipe, Category } from './types';
 import { DEFAULT_BASIC_SEASONINGS, CATEGORY_LABELS, CATEGORY_COLORS, CATEGORY_EMOJIS } from './constants';
 import { IngredientItem } from './components/IngredientItem';
@@ -52,6 +52,7 @@ export default function App() {
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [isInstallable, setIsInstallable] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
+  const [isInstalling, setIsInstalling] = useState(false); // Track active installation status
 
   // Alert Modal State
   const [alertState, setAlertState] = useState<{ isOpen: boolean; message: string; onConfirm?: () => void }>({
@@ -134,10 +135,20 @@ export default function App() {
       setIsInstallable(true);
     };
 
+    // PWA Installed Success Listener
+    const handleAppInstalled = () => {
+        setIsInstalling(false);
+        setDeferredPrompt(null);
+        setIsInstallable(false);
+        showAlert("설치가 완료되었습니다!\n홈 화면에서 앱을 실행해주세요. 🎉");
+    };
+
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
 
@@ -547,8 +558,6 @@ export default function App() {
 
     // 1. Android In-App Browser Breakout (Kakao, Naver, etc.)
     if (isAndroid && isInApp) {
-        // Force open in external browser (Chrome) using Intent scheme
-        // This is the only way to get the native "Install" prompt to appear on Android from KakaoTalk
         const url = window.location.href.replace(/^https?:\/\//, '');
         const intentUrl = `intent://${url}#Intent;scheme=https;package=com.android.chrome;end`;
         window.location.href = intentUrl;
@@ -557,13 +566,26 @@ export default function App() {
 
     // 2. Native Install Prompt (Chrome/Edge/Samsung Internet)
     if (deferredPrompt) {
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setDeferredPrompt(null);
+      // Trigger the loading overlay immediately
+      setIsInstalling(true);
+      
+      try {
+        await deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        
+        if (outcome === 'accepted') {
+           // User accepted, keep loading screen until 'appinstalled' fires
+           setDeferredPrompt(null);
+        } else {
+           // User dismissed, hide loading screen
+           setIsInstalling(false);
+        }
+      } catch (e) {
+        console.error("Install Prompt Error:", e);
+        setIsInstalling(false);
       }
     } else {
-      // 3. Manual Instructions (iOS, Desktop, or if Prompt failed/unavailable)
+      // 3. Manual Instructions
       setShowInstallModal(true);
     }
   };
@@ -656,7 +678,7 @@ export default function App() {
             <button 
             onClick={() => setView('SAVED_RECIPES')}
             className="bg-pink-50 p-2 rounded-full text-pink-500 hover:bg-pink-100 transition-colors relative ml-1 shrink-0"
-            title="내가 찜한 레시피"
+            title="찜한 레시피"
             >
             <Heart size={20} fill={savedRecipes.length > 0 ? "currentColor" : "none"} />
             {savedRecipes.length > 0 && (
@@ -671,7 +693,7 @@ export default function App() {
           <h1 className="text-xl font-bold text-slate-800">추천 메뉴</h1>
         )}
         {view === 'SAVED_RECIPES' && (
-          <h1 className="text-xl font-bold text-slate-800">내 픽(Pick) 레시피</h1>
+          <h1 className="text-xl font-bold text-slate-800">찜한 레시피</h1>
         )}
       </header>
 
@@ -1045,7 +1067,26 @@ export default function App() {
 
       </main>
 
-      {/* iOS Install Guide Modal */}
+      {/* Installing Overlay Modal */}
+      {isInstalling && (
+        <div className="fixed inset-0 z-[10000] flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in text-white">
+            <div className="bg-white/10 p-8 rounded-full mb-6 relative">
+                 <div className="absolute inset-0 bg-indigo-500 rounded-full animate-ping opacity-20"></div>
+                 <Loader2 size={48} className="text-white animate-spin" />
+            </div>
+            <h2 className="text-2xl font-bold mb-2">앱을 설치하고 있습니다</h2>
+            <p className="text-slate-300 text-sm">잠시만 기다려주세요...</p>
+            {/* Fallback close button in case appinstalled doesn't fire */}
+            <button 
+                onClick={() => setIsInstalling(false)} 
+                className="mt-8 text-xs text-slate-400 hover:text-white underline"
+            >
+                설치 화면 닫기 (오래 걸릴 경우)
+            </button>
+        </div>
+      )}
+
+      {/* Universal Install Guide Modal */}
       {showInstallModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowInstallModal(false)}>
            <div className="bg-white w-[90%] max-w-sm rounded-2xl animate-bounce-in flex flex-col max-h-[70vh] shadow-2xl overflow-hidden my-auto" onClick={(e) => e.stopPropagation()}>

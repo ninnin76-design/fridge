@@ -1,5 +1,5 @@
 // Version update - Change this when you deploy a new version to force update
-const CACHE_NAME = 'moms-fridge-v2';
+const CACHE_NAME = 'moms-fridge-v3';
 
 const urlsToCache = [
   '/',
