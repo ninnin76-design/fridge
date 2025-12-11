@@ -1,970 +1,125 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Snowflake, Layers, ChefHat, Search, ArrowLeft, Package, ClipboardList, RefreshCw, ShoppingCart, Heart, Coffee, Utensils, CheckSquare, List, Users, AlertTriangle, Sparkles, Share2, Download, X, MoreVertical, Globe } from 'lucide-react';
-import { Ingredient, StorageType, Recipe, Category } from './types';
-import { DEFAULT_BASIC_SEASONINGS, CATEGORY_LABELS, CATEGORY_COLORS, CATEGORY_EMOJIS } from './constants';
-import { IngredientItem } from './components/IngredientItem';
-import { AddIngredientModal } from './components/AddIngredientModal';
-import { RecipeCard } from './components/RecipeCard';
-import { TotalListView } from './components/TotalListView';
-import { BasicSeasoningManager } from './components/BasicSeasoningManager';
-import { DataSyncModal } from './components/DataSyncModal';
-import { SaltShakerIcon } from './components/SaltShakerIcon';
-import { CustomKeyIcon } from './components/CustomKeyIcon';
-import { ApiKeyModal } from './components/ApiKeyModal';
-import { MessageModal } from './components/MessageModal';
-import { searchPublicRecipes } from './services/mafraService';
-import { suggestSpecificRecipes as suggestAIRecipes } from './services/geminiService';
-import { autoDetectCategory } from './categoryHelper';
-import { db } from './services/db';
+import { X, Check, Key, Trash2, AlertCircle, Eye, EyeOff, ExternalLink } from 'lucide-react';
+import { CustomKeyIcon } from './CustomKeyIcon';
 
-export default function App() {
-  // State
-  const [ingredients, setIngredients] = useState<Ingredient[]>([]);
-  const [basicSeasonings, setBasicSeasonings] = useState<string[]>([]);
-  const [activeTab, setActiveTab] = useState<StorageType>(StorageType.FRIDGE);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
-  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
-  const [customApiKey, setCustomApiKey] = useState('');
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (key: string) => void;
+  currentKey: string;
+}
 
-  const [editingIngredient, setEditingIngredient] = useState<Ingredient | null>(null);
-  const [view, setView] = useState<'INVENTORY' | 'RECIPES' | 'TOTAL' | 'SEASONINGS' | 'SAVED_RECIPES'>('INVENTORY');
-  
-  // Recipe State
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [activeRecipeTab, setActiveRecipeTab] = useState<'MAIN' | 'SIDE' | 'SNACK'>('MAIN');
-  const [savedRecipes, setSavedRecipes] = useState<Recipe[]>([]);
-  const [isGeneratingRecipes, setIsGeneratingRecipes] = useState(false);
-  const [isUsingAI, setIsUsingAI] = useState(false); // Track if current results are from AI
-  
-  // Tab-specific loading state (allows browsing other tabs while one regenerates)
-  const [regeneratingTab, setRegeneratingTab] = useState<'MAIN' | 'SIDE' | 'SNACK' | null>(null);
+export const ApiKeyModal: React.FC<Props> = ({ isOpen, onClose, onSave, currentKey }) => {
+  const [inputKey, setInputKey] = useState('');
+  const [showKey, setShowKey] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Track background loading for non-active tabs (initial load)
-  const [backgroundLoading, setBackgroundLoading] = useState(false);
-  
-  // Shopping List State (derived from Saved Recipes)
-  const [showShoppingList, setShowShoppingList] = useState(false);
-  const [selectedShoppingItems, setSelectedShoppingItems] = useState<Set<string>>(new Set());
-
-  // PWA Install State
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
-  const [showInstallModal, setShowInstallModal] = useState(false);
-  const [isInstallable, setIsInstallable] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
-
-  // Alert Modal State
-  const [alertState, setAlertState] = useState<{ isOpen: boolean; message: string; onConfirm?: () => void }>({
-    isOpen: false,
-    message: '',
-  });
-
-  // Helper to show custom alert
-  const showAlert = (message: string, onConfirm?: () => void) => {
-    setAlertState({ isOpen: true, message, onConfirm });
-  };
-
-  const closeAlert = () => {
-    setAlertState(prev => ({ ...prev, isOpen: false }));
-    if (alertState.onConfirm) {
-        alertState.onConfirm();
-    }
-  };
-
-  // Load from IndexedDB and LocalStorage on mount
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const [dbIngredients, dbSeasonings, dbRecipes] = await Promise.all([
-          db.getAllIngredients(),
-          db.getAllSeasonings(),
-          db.getAllSavedRecipes()
-        ]);
+    if (isOpen) {
+      setInputKey(currentKey);
+      setError(null);
+    }
+  }, [isOpen, currentKey]);
 
-        setIngredients(dbIngredients);
-        setSavedRecipes(dbRecipes);
+  if (!isOpen) return null;
 
-        // If seasonings DB is empty (first run), initialize with defaults
-        if (dbSeasonings.length === 0) {
-           await db.setAllSeasonings(DEFAULT_BASIC_SEASONINGS);
-           setBasicSeasonings(DEFAULT_BASIC_SEASONINGS);
-        } else {
-           setBasicSeasonings(dbSeasonings);
-        }
-        
-        // Load Custom API Key
-        const savedKey = localStorage.getItem('gemini_api_key');
-        if (savedKey) {
-            setCustomApiKey(savedKey);
-        }
-
-      } catch (error) {
-        console.error("Failed to load data from DB:", error);
-      }
-    };
-
-    loadData();
-
-    // Check Platform & Standalone Status
-    const checkEnvironment = () => {
-        const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-        setIsIOS(ios);
-
-        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
-        
-        // Show install button if NOT in standalone mode (i.e., running in browser)
-        setIsInstallable(!isStandalone);
-    };
-    checkEnvironment();
-
-    // PWA Install Prompt Listener (Chrome/Android)
-    const handleBeforeInstallPrompt = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-      setIsInstallable(true);
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-    return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    };
-  }, []);
-
-  const handleSaveIngredient = async (data: (Omit<Ingredient, 'id'> & { id?: string }) | (Omit<Ingredient, 'id'> & { id?: string })[]) => {
-    const dataArray = Array.isArray(data) ? data : [data];
-    const itemsToSave: Ingredient[] = [];
-
-    // Prepare Items
-    dataArray.forEach(item => {
-        const newItem: Ingredient = {
-            ...item,
-            id: item.id || Date.now().toString() + Math.random().toString(36).substr(2, 9)
-        };
-        itemsToSave.push(newItem);
-    });
-
-    // Save to DB
-    await db.bulkAddIngredients(itemsToSave);
-
-    // Update Local State
-    setIngredients(prev => {
-      let next = [...prev];
-      itemsToSave.forEach(newItem => {
-          const index = next.findIndex(i => i.id === newItem.id);
-          if (index !== -1) {
-              next[index] = newItem; // Update
-          } else {
-              next.push(newItem); // Add
-          }
-      });
-      return next;
-    });
+  const handleSave = () => {
+    const trimmedKey = inputKey.trim();
     
-    setEditingIngredient(null);
+    if (!trimmedKey) {
+      setError('API 키를 입력해주세요.');
+      return;
+    }
+
+    onSave(trimmedKey);
+    onClose();
   };
 
-  const handleDeleteIngredient = async (id: string) => {
-    // Removed confirmation dialog for immediate deletion
-    await db.deleteIngredient(id);
-    setIngredients(prev => prev.filter(i => i.id !== id));
-  };
-
-  const handleEditIngredient = (ingredient: Ingredient) => {
-    setEditingIngredient(ingredient);
-    setIsAddModalOpen(true);
-  };
-
-  // Wrapper for updating seasonings to sync with DB
-  const updateBasicSeasonings = async (newSeasonings: string[]) => {
-      await db.setAllSeasonings(newSeasonings);
-      setBasicSeasonings(newSeasonings);
-  };
-
-  const handleToggleSaveRecipe = async (recipe: Recipe) => {
-      const isAdded = await db.toggleSavedRecipe(recipe);
-      
-      setSavedRecipes(prev => {
-          if (!isAdded) {
-              // Removed
-              return prev.filter(r => r.id !== recipe.id);
-          } else {
-              // Added
-              return [recipe, ...prev];
-          }
-      });
-  };
-
-  const isRecipeSaved = (id: string) => savedRecipes.some(r => r.id === id);
-
-  // Import Data Handler
-  const handleImportData = async (rawIngredients: any[], rawSeasonings?: string[]) => {
-      const ingCount = Array.isArray(rawIngredients) ? rawIngredients.length : 0;
-      const seaCount = Array.isArray(rawSeasonings) ? rawSeasonings.length : 0;
-
-      if (ingCount === 0 && seaCount === 0) {
-        showAlert("추가할 데이터가 없습니다.");
-        return;
-      }
-
-      const validIngredients: Ingredient[] = [];
-      let counts = { [StorageType.FRIDGE]: 0, [StorageType.FREEZER]: 0, [StorageType.PANTRY]: 0 };
-
-      if (Array.isArray(rawIngredients)) {
-        rawIngredients.forEach(item => {
-          if (!item.name) return;
-          let storage = StorageType.FRIDGE;
-          const s = String(item.storage || '').toUpperCase();
-          if (s.includes('FREEZE') || s.includes('냉동')) storage = StorageType.FREEZER;
-          else if (s.includes('PANTRY') || s.includes('실온')) storage = StorageType.PANTRY;
-          
-          let category = Category.ETC;
-          const cRaw = String(item.category || '').trim();
-          const cUpper = cRaw.toUpperCase();
-          if (Object.keys(Category).includes(cUpper)) category = cUpper as Category;
-          else {
-             const matchedKey = Object.keys(CATEGORY_LABELS).find(key => CATEGORY_LABELS[key as Category] === cRaw);
-             if (matchedKey) category = matchedKey as Category;
-          }
-
-          // Check for existing ingredient with same name and storage
-          const exists = ingredients.some(i => 
-              i.name === item.name && i.storage === storage
-          );
-
-          if (!exists) {
-              validIngredients.push({
-                  id: `imported-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                  name: item.name,
-                  quantity: '',
-                  storage: storage,
-                  category: category,
-                  isAlwaysAvailable: false
-              });
-              counts[storage]++;
-          }
-        });
-      }
-
-      const validSeasonings = Array.isArray(rawSeasonings) 
-          ? rawSeasonings.filter(s => typeof s === 'string' && s.trim() !== '')
-          : [];
-
-      let addedIngredientsCount = 0;
-      let addedSeasoningsCount = 0;
-
-      if (validIngredients.length > 0) {
-          addedIngredientsCount = validIngredients.length;
-          await db.bulkAddIngredients(validIngredients);
-          setIngredients(prev => [...prev, ...validIngredients]);
-      }
-      
-      if (validSeasonings.length > 0) {
-          const prevSet = new Set(basicSeasonings);
-          const newUnique = validSeasonings.filter(s => !prevSet.has(s));
-          addedSeasoningsCount = newUnique.length;
-          if (addedSeasoningsCount > 0) {
-              const mergedSeasonings = [...basicSeasonings, ...newUnique];
-              await db.setAllSeasonings(mergedSeasonings);
-              setBasicSeasonings(mergedSeasonings);
-          }
-      }
-
-      setTimeout(() => {
-          if (addedIngredientsCount > 0) {
-            // Smart Tab Switching: Switch to the tab where most items were added
-            if (counts[StorageType.FREEZER] > 0 && counts[StorageType.FREEZER] >= counts[StorageType.FRIDGE]) {
-                setActiveTab(StorageType.FREEZER);
-            } else if (counts[StorageType.PANTRY] > 0 && counts[StorageType.PANTRY] >= counts[StorageType.FRIDGE]) {
-                setActiveTab(StorageType.PANTRY);
-            } else {
-                setActiveTab(StorageType.FRIDGE);
-            }
-          }
-          let msg = `✅ 데이터 동기화 완료!`;
-          if (addedIngredientsCount === 0 && addedSeasoningsCount === 0) msg = `✅ 이미 모든 재료가 최신 상태입니다.`;
-          else {
-              if (addedIngredientsCount > 0) msg += `\n[신규 재료 ${addedIngredientsCount}개]`;
-              if (addedSeasoningsCount > 0) msg += `\n[신규 양념 ${addedSeasoningsCount}개]`;
-          }
-          showAlert(msg);
-      }, 100);
-  };
-
-  const filteredIngredients = ingredients.filter(i => i.storage === activeTab);
-
-  const groupedIngredients = filteredIngredients.reduce((acc, ingredient) => {
-    const cat = ingredient.category || Category.ETC;
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(ingredient);
-    return acc;
-  }, {} as Record<Category, Ingredient[]>);
-
-  const categoryOrder = [
-    Category.VEGETABLE, Category.FRUIT, Category.MEAT,
-    Category.FISH, Category.DAIRY, Category.GRAIN,
-    Category.PROCESSED, Category.SAUCE, Category.ETC
-  ];
-
-  const getAllAvailableIngredients = () => {
-    const basicSeasoningIngredients: Ingredient[] = basicSeasonings.map(name => ({
-      id: `basic-${name}`,
-      name: name,
-      quantity: '',
-      category: autoDetectCategory(name) || Category.SAUCE,
-      storage: StorageType.PANTRY,
-      isAlwaysAvailable: true
-    }));
-    return [...ingredients, ...basicSeasoningIngredients];
-  };
-
-  // Recipe Generation Logic
-  const generateRecipesCommon = async (useAI: boolean) => {
-      setView('RECIPES');
-      
-      // Clear previous recipes immediately to prevent stale data visibility
-      setRecipes([]);
-      setActiveRecipeTab('MAIN');
-      setIsGeneratingRecipes(true);
-      setBackgroundLoading(false);
-      setRegeneratingTab(null);
-      setIsUsingAI(useAI);
-
-      const allIngredients = getAllAvailableIngredients();
-
-      try {
-          // Determine Fetch Function
-          let fetchFn: (type: 'MAIN' | 'SIDE' | 'SNACK') => Promise<Recipe[]>;
-          
-          if (useAI) {
-              fetchFn = (type) => suggestAIRecipes(allIngredients, type, type === 'MAIN' ? 3 : 2, customApiKey);
-          } else {
-              fetchFn = (type) => searchPublicRecipes(allIngredients, type);
-          }
-
-          // Step 1: Fetch MAIN dishes FIRST
-          const mainRecipes = await fetchFn('MAIN');
-          setRecipes(mainRecipes);
-          
-          setIsGeneratingRecipes(false);
-          setBackgroundLoading(true);
-
-          // Step 2: Fetch SIDE and SNACK in background
-          Promise.all([
-              fetchFn('SIDE'),
-              fetchFn('SNACK')
-          ]).then(([sideRecipes, snackRecipes]) => {
-              setRecipes(prev => [...prev, ...sideRecipes, ...snackRecipes]);
-              setBackgroundLoading(false);
-          }).catch(err => {
-              console.warn("Background recipe fetch failed", err);
-              setBackgroundLoading(false);
-          });
-
-      } catch (error: any) {
-          console.error("Error generating recipes:", error);
-          setIsGeneratingRecipes(false);
-          
-          if (useAI) {
-              showAlert('AI 연결에 실패했습니다.\nAPI 키 설정을 확인해주세요.');
-          } else {
-              showAlert("레시피를 불러오는 중 오류가 발생했습니다.");
-          }
-      }
-  };
-
-  const handleGeneratePublicRecipes = () => generateRecipesCommon(false);
-  
-  const handleGenerateAIRecipes = () => {
-      // [Modified] Check for API Key first
-      if (!customApiKey) {
-          // Use showAlert instead of alert(), and pass a callback to open settings
-          showAlert("AI 셰프 기능을 이용하려면 API 키 설정이 필요합니다.\n설정 창에서 키를 입력해주세요.", () => {
-              setIsApiKeyModalOpen(true);
-          });
-          return;
-      }
-
-      // PERMANENCE CHECK:
-      // If we already have AI recipes generated and we are in AI mode, 
-      // just show the existing list instead of regenerating.
-      if (recipes.length > 0 && isUsingAI) {
-          setView('RECIPES');
-          return;
-      }
-
-      generateRecipesCommon(true);
-  };
-
-  const handleRegenerateCurrentCategory = async () => {
-      if (regeneratingTab) return;
-
-      const targetTab = activeRecipeTab;
-      setRegeneratingTab(targetTab);
-      
-      const allIngredients = getAllAvailableIngredients();
-      let newRecipes: Recipe[] = [];
-
-      try {
-        if (isUsingAI) {
-            newRecipes = await suggestAIRecipes(allIngredients, targetTab, targetTab === 'MAIN' ? 3 : 2, customApiKey);
-        } else {
-            newRecipes = await searchPublicRecipes(allIngredients, targetTab);
-        }
-        
-        setRecipes(prev => {
-            const others = prev.filter(r => r.recipeType !== targetTab);
-            return [...others, ...newRecipes];
-        });
-      } catch (e: any) {
-          console.error("Regeneration failed", e);
-          setRegeneratingTab(null); // Clear loading state immediately on error
-          showAlert("다시 추천받기에 실패했습니다.");
-      }
-      
-      setRegeneratingTab(null);
-  };
-
-  const displayRecipes = recipes.filter(r => r.recipeType === activeRecipeTab);
-
-  const getShoppingList = () => {
-      const listMap = new Map<string, string[]>();
-      savedRecipes.forEach(recipe => {
-          if (recipe.missingIngredients && recipe.missingIngredients.length > 0) {
-              recipe.missingIngredients.forEach(ing => {
-                  const cleanedName = ing.trim();
-                  if (!listMap.has(cleanedName)) listMap.set(cleanedName, []);
-                  listMap.get(cleanedName)?.push(recipe.name);
-              });
-          }
-      });
-      return Array.from(listMap.entries()).map(([name, recipes]) => ({ name, recipes }));
-  };
-
-  const handleToggleShoppingItem = (name: string) => {
-    const newSet = new Set(selectedShoppingItems);
-    if (newSet.has(name)) newSet.delete(name);
-    else newSet.add(name);
-    setSelectedShoppingItems(newSet);
-  };
-
-  const handleConfirmShopping = async () => {
-      if (selectedShoppingItems.size === 0) return;
-      
-      const itemsToBuy = Array.from(selectedShoppingItems) as string[];
-      const newIngredients: Ingredient[] = [];
-
-      // 1. Add to Inventory
-      itemsToBuy.forEach(name => {
-           const category = autoDetectCategory(name) || Category.ETC;
-           let storage = StorageType.FRIDGE;
-           if (category === Category.GRAIN || category === Category.SAUCE || category === Category.ETC) storage = StorageType.PANTRY;
-           
-           newIngredients.push({
-               id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-               name: name, 
-               category, 
-               storage, 
-               quantity: '', 
-               isAlwaysAvailable: false
-           });
-      });
-
-      await handleSaveIngredient(newIngredients);
-
-      // 2. Remove from Missing Ingredients in Saved Recipes
-      const updatedRecipes = savedRecipes.map(r => {
-          if (!r.missingIngredients) return r;
-          
-          // Filter out items that are now bought
-          const remaining = r.missingIngredients.filter(ing => !selectedShoppingItems.has(ing));
-          
-          // If no change, return original
-          if (remaining.length === r.missingIngredients.length) return r;
-          
-          return { ...r, missingIngredients: remaining };
-      });
-
-      // 3. Update DB only if changes occurred
-      const changedRecipes = updatedRecipes.filter((r, i) => r !== savedRecipes[i]);
-      if (changedRecipes.length > 0) {
-          await db.bulkUpdateSavedRecipes(changedRecipes);
-          setSavedRecipes(updatedRecipes);
-      }
-
-      showAlert(`${itemsToBuy.length}개의 재료를 냉장고에 등록했습니다! 🎊`);
-      setSelectedShoppingItems(new Set());
-  };
-  
-  const handleSaveApiKey = (key: string) => {
-      setCustomApiKey(key);
-      if (key) {
-        localStorage.setItem('gemini_api_key', key);
-      } else {
-        localStorage.removeItem('gemini_api_key');
-      }
-  };
-
-  // --- Share & Install Handlers ---
-  const handleShare = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      showAlert('주소가 복사되었습니다! 카톡으로 친구에게 공유해보세요.');
-    } catch (err) {
-      showAlert('주소 복사에 실패했습니다.');
+  const handleDelete = () => {
+    if (window.confirm('저장된 API 키를 삭제하시겠습니까?')) {
+      onSave('');
+      setInputKey('');
+      onClose();
     }
   };
-
-  const handleInstallClick = async () => {
-    if (deferredPrompt) {
-      // Android / Chrome / Edge Native Install
-      deferredPrompt.prompt();
-      const { outcome } = await deferredPrompt.userChoice;
-      if (outcome === 'accepted') {
-        setDeferredPrompt(null);
-      }
-    } else {
-      // iOS or In-App Browser (Kakao, Naver, etc.)
-      setShowInstallModal(true);
-    }
-  };
-
-  if (view === 'TOTAL') {
-    return (
-      <TotalListView 
-        ingredients={ingredients} 
-        basicSeasonings={basicSeasonings}
-        onClose={() => setView('INVENTORY')} 
-      />
-    );
-  }
-
-  if (view === 'SEASONINGS') {
-    return (
-      <BasicSeasoningManager 
-        seasonings={basicSeasonings} 
-        onUpdate={updateBasicSeasonings} 
-        onClose={() => setView('INVENTORY')} 
-      />
-    );
-  }
 
   return (
-    <div className="min-h-screen pb-20 max-w-md mx-auto bg-gray-50 shadow-2xl overflow-hidden relative">
-      
-      {/* Header */}
-      <header className="bg-white px-4 pt-12 pb-4 sticky top-0 z-10 border-b border-gray-100 flex items-center justify-between app-header">
-        {(view === 'RECIPES' || view === 'SAVED_RECIPES') ? (
-          <button onClick={() => setView('INVENTORY')} className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-full">
-            <ArrowLeft />
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white rounded-2xl w-[90%] max-w-sm shadow-2xl overflow-hidden flex flex-col max-h-[75vh] my-auto">
+        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-4 flex justify-between items-center text-white shrink-0">
+          <h2 className="text-lg font-bold flex items-center gap-2">
+            <CustomKeyIcon size={20} /> API 키 설정
+          </h2>
+          <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-full">
+            <X size={20} />
           </button>
-        ) : (
-          <div className="flex flex-col min-w-0 mr-2">
-            <h1 className="text-lg sm:text-2xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-indigo-800 whitespace-nowrap leading-none mb-1 truncate">
-              엄마의 냉장고
-            </h1>
-            <p className="text-[10px] sm:text-xs font-bold text-slate-500 tracking-wide whitespace-nowrap opacity-75 truncate">
-              오늘 뭐 먹지 고민 해결! 🥘
+        </div>
+
+        <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+          <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl text-sm text-indigo-800 leading-relaxed mb-6">
+            <p className="mb-3">
+                Google AI Studio에서 발급받은 <strong>Gemini API 키</strong>를 입력해주세요.
+                <br/>
+                입력한 키는 브라우저에만 저장됩니다.
             </p>
-          </div>
-        )}
-        
-        <div className="flex gap-1 bg-slate-100 p-1 rounded-full shrink-0">
-          {view === 'INVENTORY' && (
-            <div className="flex gap-0.5">
-                {isInstallable && (
-                    <button 
-                      onClick={handleInstallClick}
-                      className="bg-indigo-600 p-1.5 rounded-full text-white shadow-sm hover:bg-indigo-700 transition-colors animate-pulse"
-                      title="앱 설치(다운로드)"
-                    >
-                      <Download size={16} />
-                    </button>
-                )}
-                <button 
-                  onClick={handleShare}
-                  className="bg-white p-1.5 rounded-full text-slate-600 shadow-sm hover:text-indigo-600 transition-colors"
-                  title="주소 공유하기"
-                >
-                  <Share2 size={16} />
-                </button>
-                <button 
-                  onClick={() => setIsSyncModalOpen(true)}
-                  className="bg-white p-1.5 rounded-full text-slate-600 shadow-sm hover:text-green-600 transition-colors"
-                  title="데이터 동기화 (아이들과 공유)"
-                >
-                  <Users size={16} />
-                </button>
-                <button 
-                  onClick={() => setView('SEASONINGS')}
-                  className="bg-white p-1.5 rounded-full text-slate-600 shadow-sm hover:text-amber-600 transition-colors"
-                  title="기본 양념/소스 관리"
-                >
-                  <SaltShakerIcon size={16} />
-                </button>
-                <button 
-                  onClick={() => setView('TOTAL')}
-                  className="bg-white p-1.5 rounded-full text-slate-600 shadow-sm hover:text-slate-900 transition-colors"
-                  title="전체 재고 확인"
-                >
-                  <ClipboardList size={16} />
-                </button>
-            </div>
-          )}
-        </div>
-        
-        {view === 'INVENTORY' && (
-            <button 
-            onClick={() => setView('SAVED_RECIPES')}
-            className="bg-pink-50 p-2 rounded-full text-pink-500 hover:bg-pink-100 transition-colors relative ml-1 shrink-0"
-            title="내가 찜한 레시피"
+            <a 
+              href="https://aistudio.google.com/api-keys"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 font-bold text-indigo-600 hover:text-indigo-800 hover:underline"
             >
-            <Heart size={20} fill={savedRecipes.length > 0 ? "currentColor" : "none"} />
-            {savedRecipes.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
-                    {savedRecipes.length}
-                </span>
-            )}
-            </button>
-        )}
-        
-        {view === 'RECIPES' && (
-          <h1 className="text-xl font-bold text-slate-800">추천 메뉴</h1>
-        )}
-        {view === 'SAVED_RECIPES' && (
-          <h1 className="text-xl font-bold text-slate-800">내 픽(Pick) 레시피</h1>
-        )}
-      </header>
-
-      {/* Main Content */}
-      <main className="p-4">
-        
-        {view === 'INVENTORY' && (
-          <>
-            <div className="mb-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden app-stats">
-               <div className="relative z-10">
-                 <h2 className="font-bold text-lg mb-1">재료가 {ingredients.length}개 있어요!</h2>
-                 <p className="text-indigo-100 text-sm mb-4">아이들이 배고파하나요? 지금 바로 확인해보세요.</p>
-                 <div className="flex gap-3 items-end mt-2">
-                    <button 
-                      onClick={handleGeneratePublicRecipes}
-                      className="flex-1 min-w-0 h-12 bg-white text-indigo-600 rounded-xl font-bold text-base shadow-lg shadow-indigo-900/20 active:scale-95 transition-transform flex items-center justify-center gap-2 whitespace-nowrap"
-                    >
-                      <ChefHat size={20} />
-                      요리추천
-                    </button>
-                    <div className="flex-1 min-w-0 flex flex-col items-end gap-2">
-                        <button 
-                           onClick={() => setIsApiKeyModalOpen(true)}
-                           className="w-8 h-8 flex items-center justify-center bg-white/25 text-white hover:bg-white/40 rounded-full transition-colors shadow-sm backdrop-blur-sm"
-                           title="AI API 키 설정"
-                        >
-                           <CustomKeyIcon size={20} />
-                        </button>
-                        <button 
-                        onClick={handleGenerateAIRecipes}
-                        className="w-full h-12 bg-purple-700 text-white rounded-xl font-bold text-base shadow-lg shadow-purple-900/20 active:scale-95 transition-transform flex items-center justify-center gap-2 border border-purple-500 whitespace-nowrap"
-                        >
-                        <Sparkles size={20} />
-                        AI 추천
-                        </button>
-                    </div>
-                 </div>
-               </div>
-               <div className="absolute -right-4 -bottom-8 opacity-20 transform rotate-12">
-                 <ChefHat size={120} />
-               </div>
-            </div>
-
-            {/* Storage Tabs */}
-            <div className="flex p-1 bg-gray-200 rounded-xl mb-4 gap-0.5 app-nav">
-              <button
-                onClick={() => setActiveTab(StorageType.FRIDGE)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
-                  activeTab === StorageType.FRIDGE 
-                    ? 'bg-white text-slate-800 shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                <Layers size={15} />
-                냉장 ({ingredients.filter(i => i.storage === StorageType.FRIDGE).length})
-              </button>
-              <button
-                onClick={() => setActiveTab(StorageType.FREEZER)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
-                  activeTab === StorageType.FREEZER 
-                    ? 'bg-white text-blue-600 shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                <Snowflake size={15} />
-                냉동 ({ingredients.filter(i => i.storage === StorageType.FREEZER).length})
-              </button>
-              <button
-                onClick={() => setActiveTab(StorageType.PANTRY)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
-                  activeTab === StorageType.PANTRY 
-                    ? 'bg-white text-amber-600 shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                <Package size={15} />
-                실온 ({ingredients.filter(i => i.storage === StorageType.PANTRY).length})
-              </button>
-            </div>
-
-            <div className="space-y-4 pb-20">
-              {filteredIngredients.length === 0 ? (
-                <div className="text-center py-12 animate-fade-in">
-                  <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 text-gray-400">
-                    <Search size={24} />
-                  </div>
-                  <p className="text-gray-500 font-medium">등록된 재료가 없어요.</p>
-                  <p className="text-gray-400 text-sm mt-1">아래 + 버튼을 눌러 추가해주세요.</p>
-                </div>
-              ) : (
-                categoryOrder.map(cat => {
-                  const items = groupedIngredients[cat];
-                  if (!items || items.length === 0) return null;
-                  return (
-                    <div key={cat} className="animate-fade-in">
-                      <div className="flex items-center gap-2 mb-2 px-1">
-                        <h3 className="font-bold text-slate-700 text-sm flex items-center">
-                            <span className="mr-1.5 text-lg leading-none">{CATEGORY_EMOJIS[cat]}</span>
-                            {CATEGORY_LABELS[cat]}
-                        </h3>
-                        <span className="bg-gray-100 text-gray-500 text-xs px-1.5 py-0.5 rounded-full font-medium">{items.length}</span>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        {items.map(ingredient => (
-                          <IngredientItem 
-                            key={ingredient.id} 
-                            ingredient={ingredient} 
-                            onDelete={handleDeleteIngredient}
-                            onEdit={handleEditIngredient}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </>
-        )}
-
-        {view === 'RECIPES' && (
-          <div className="animate-fade-in">
-            {isGeneratingRecipes && recipes.length === 0 ? (
-              <div className="text-center py-20">
-                <div className="animate-bounce mb-4 text-4xl">
-                    {isUsingAI ? '🤖' : '🧑‍🍳'}
-                </div>
-                {recipes.length > 0 ? (
-                    <>
-                        <h2 className="text-xl font-bold text-slate-800 mb-2">
-                             메뉴를 다시 생각 중입니다!
-                        </h2>
-                        <p className="text-slate-500">조금만 기다려주세요...</p>
-                    </>
-                ) : (
-                    <>
-                        <h2 className="text-xl font-bold text-slate-800 mb-2">
-                            {isUsingAI ? 'AI 셰프가 고민 중!' : '공공 레시피를 찾는 중!'}
-                        </h2>
-                        <p className="text-slate-500">
-                            {isUsingAI 
-                                ? '당신의 재료로 창의적인 요리를 생각하고 있습니다...' 
-                                : '내장된 레시피 데이터베이스에서 맛있는 요리를 찾고 있습니다...'
-                            }
-                        </p>
-                    </>
-                )}
-              </div>
-            ) : recipes.length > 0 ? (
-              <div className="pb-10">
-                <div className="flex p-1 bg-gray-200 rounded-xl mb-6 gap-0.5 sticky top-[5.5rem] z-10 shadow-sm">
-                  {['MAIN', 'SIDE', 'SNACK'].map(tab => (
-                     <button
-                     key={tab}
-                     onClick={() => setActiveRecipeTab(tab as any)}
-                     className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-bold transition-all relative whitespace-nowrap ${
-                       activeRecipeTab === tab 
-                         ? 'bg-white text-indigo-700 shadow-sm' 
-                         : 'text-slate-500 hover:text-slate-700'
-                     }`}
-                   >
-                     {tab === 'MAIN' ? <ChefHat size={16} /> : tab === 'SIDE' ? <Utensils size={16} /> : <Coffee size={16} />} 
-                     {tab === 'MAIN' ? '메인요리' : tab === 'SIDE' ? '반찬' : '간식'}
-                     {/* Loading Indicators */}
-                     {(backgroundLoading && activeRecipeTab !== tab && (recipes.filter(r => r.recipeType === tab).length === 0)) || regeneratingTab === tab ? (
-                         <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-indigo-500 rounded-full animate-ping"></span>
-                     ) : null}
-                   </button>
-                  ))}
-                </div>
-
-                <div className="animate-fade-in min-h-[50vh]">
-                    {regeneratingTab === activeRecipeTab ? (
-                         <div className="flex flex-col items-center justify-center py-20 h-full animate-fade-in">
-                            <div className="animate-spin text-indigo-500 mb-4"><RefreshCw size={32}/></div>
-                            <h3 className="text-lg font-bold text-slate-700 text-center leading-relaxed">
-                                {isUsingAI ? 'AI 셰프가' : '다른 추천'}<br/>
-                                {activeRecipeTab === 'MAIN' ? '메인 요리' : activeRecipeTab === 'SIDE' ? '반찬' : '간식'} 메뉴를<br/>
-                                다시 찾고 있어요!
-                            </h3>
-                        </div>
-                    ) : displayRecipes.length > 0 ? (
-                        displayRecipes.map(recipe => (
-                            <RecipeCard 
-                                key={recipe.id} 
-                                recipe={recipe} 
-                                isSaved={isRecipeSaved(recipe.id)}
-                                onToggleSave={handleToggleSaveRecipe}
-                            />
-                        ))
-                    ) : (
-                         <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-200">
-                             {backgroundLoading ? (
-                                <>
-                                    <div className="animate-spin text-indigo-500 mb-2 mx-auto"><RefreshCw size={24}/></div>
-                                    <p className="text-slate-500 font-medium">메뉴를 불러오고 있습니다...</p>
-                                </>
-                             ) : (
-                                <>
-                                    <p className="text-slate-400 font-medium">추천된 메뉴가 없습니다.</p>
-                                    <p className="text-xs text-slate-300 mt-2">다른 카테고리를 확인해보세요.</p>
-                                </>
-                             )}
-                         </div>
-                    )}
-                </div>
-
-                {/* AI Disclaimer */}
-                <div className="my-8 p-4 bg-gray-50 rounded-xl border border-gray-100 flex items-start gap-3">
-                    <AlertTriangle size={18} className="text-amber-500 shrink-0 mt-0.5" />
-                    <p className="text-xs text-slate-500 leading-relaxed">
-                        <strong>{isUsingAI ? 'AI 셰프 안내' : '추천 레시피 안내'}:</strong><br/>
-                        {isUsingAI 
-                            ? '생성형 AI(Gemini)가 추천한 레시피로, 실제 조리법과 다를 수 있습니다.' 
-                            : '검증된 인기 레시피 데이터베이스를 기반으로 추천된 결과입니다.'
-                        }
-                    </p>
-                </div>
-
-                {/* Regenerate Button - NOW FOR BOTH MODES */}
-                <div className="pt-4 pb-4 text-center">
-                    <button
-                        onClick={handleRegenerateCurrentCategory}
-                        disabled={regeneratingTab !== null}
-                        className="bg-white text-indigo-600 border border-indigo-200 px-6 py-3 rounded-xl font-bold text-sm shadow-sm hover:bg-indigo-50 active:scale-95 transition-all flex items-center gap-2 mx-auto disabled:opacity-50 disabled:active:scale-100 whitespace-nowrap"
-                    >
-                        <RefreshCw size={18} className={regeneratingTab ? 'animate-spin' : ''} />
-                        {regeneratingTab 
-                            ? '메뉴 다시 찾는 중...' 
-                            : isUsingAI 
-                                ? `${activeRecipeTab === 'MAIN' ? '메인' : activeRecipeTab === 'SIDE' ? '반찬' : '간식'} 다시 받기`
-                                : `${activeRecipeTab === 'MAIN' ? '메인' : activeRecipeTab === 'SIDE' ? '반찬' : '간식'} 다시 검색`
-                        }
-                    </button>
-                    <p className="text-xs text-slate-400 mt-2">
-                        {isUsingAI ? '현재 탭의 메뉴를 AI에게 다시 요청합니다.' : '현재 재료로 만들 수 있는 다른 메뉴를 찾아봅니다.'}
-                    </p>
-                </div>
-                
-              </div>
-            ) : (
-              <div className="text-center py-20">
-                <p className="text-slate-500">추천할 수 있는 레시피가 없어요 😭<br/>재료를 더 등록해보세요!</p>
-              </div>
-            )}
+              👉 키 발급 페이지 바로가기 <ExternalLink size={12} />
+            </a>
           </div>
-        )}
 
-      </main>
+          <div className="mb-2 relative">
+             <div className="relative">
+                <input 
+                    type={showKey ? "text" : "password"}
+                    value={inputKey}
+                    onChange={(e) => {
+                        setInputKey(e.target.value);
+                        if (error) setError(null);
+                    }}
+                    placeholder="API Key 입력"
+                    className={`w-full px-4 py-3 pr-12 rounded-xl border ${error ? 'border-red-300 bg-red-50 focus:ring-red-200' : 'border-slate-200 bg-slate-50 focus:border-indigo-500'} focus:ring-4 focus:ring-opacity-50 outline-none transition-all font-mono text-sm`}
+                />
+                <button 
+                    type="button"
+                    onClick={() => setShowKey(!showKey)}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                >
+                    {showKey ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+             </div>
+             {error && (
+                 <div className="flex items-center gap-1 text-red-500 text-xs mt-2 font-bold px-1">
+                     <AlertCircle size={12} />
+                     {error}
+                 </div>
+             )}
+          </div>
 
-      {/* Universal Install Guide Modal */}
-      {showInstallModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowInstallModal(false)}>
-           <div className="bg-white w-[90%] max-w-sm rounded-2xl animate-bounce-in flex flex-col max-h-[75vh] shadow-2xl overflow-hidden my-auto" onClick={(e) => e.stopPropagation()}>
-               <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
-                   <h3 className="text-xl font-bold text-slate-900">앱 설치 방법</h3>
-                   <button onClick={() => setShowInstallModal(false)} className="p-1 bg-slate-100 rounded-full hover:bg-slate-200"><X size={20}/></button>
-               </div>
-               
-               <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
-                   <div className="space-y-6 text-slate-600 text-sm">
-                       {isIOS ? (
-                           // iOS Instructions
-                           <>
-                               <div className="flex items-center gap-3">
-                                   <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">1</span>
-                                   <span>사파리(Safari) 브라우저 하단 <strong className="text-indigo-600">공유 버튼</strong>을 누르세요.</span>
-                               </div>
-                               <div className="flex items-center gap-3">
-                                   <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">2</span>
-                                   <span>메뉴를 내려서 <strong className="text-indigo-600">'홈 화면에 추가'</strong>를 선택하세요.</span>
-                               </div>
-                           </>
-                       ) : (
-                           // Android / KakaoTalk In-App Instructions
-                           <>
-                               <div className="bg-amber-50 p-3 rounded-lg text-amber-800 text-xs mb-4 flex gap-2 border border-amber-100 leading-relaxed">
-                                    <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-                                    <div>카카오톡 등 앱 내부에서는 설치가 안 될 수 있습니다. <strong>Chrome(크롬)</strong>이나 <strong>삼성 인터넷</strong>으로 열어주세요.</div>
-                               </div>
-                               <div className="flex items-center gap-3">
-                                   <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">1</span>
-                                   <span>브라우저 우측 상단(또는 하단)의 <strong className="text-indigo-600">메뉴(⋮ 또는 ≡)</strong>를 누르세요.</span>
-                               </div>
-                               <div className="flex items-center gap-3">
-                                   <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">2</span>
-                                   <span><strong className="text-indigo-600">'앱 설치'</strong> 또는 <strong className="text-indigo-600">'홈 화면에 추가'</strong>를 선택하세요.</span>
-                               </div>
-                           </>
-                       )}
-                       
-                       <div className="mt-4 p-3 bg-indigo-50 rounded-xl text-indigo-700 font-bold text-center">
-                           설치 후 앱처럼 편하게 사용하세요! 🎉
-                       </div>
-                   </div>
-               </div>
-           </div>
+          <div className="flex gap-2 mt-6">
+            {currentKey && (
+                <button
+                    onClick={handleDelete}
+                    className="flex-1 py-3 bg-red-50 text-red-600 border border-red-100 rounded-xl font-bold shadow-sm hover:bg-red-100 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                >
+                    <Trash2 size={18} />
+                    삭제
+                </button>
+            )}
+            <button
+              onClick={handleSave}
+              className="flex-[2] py-3 bg-slate-900 text-white rounded-xl font-bold shadow-lg shadow-slate-200 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+            >
+              <Check size={18} />
+              {currentKey ? '수정 완료' : '등록하기'}
+            </button>
+          </div>
         </div>
-      )}
-
-      {/* Custom Message Modal (Replaces window.alert) */}
-      <MessageModal 
-        isOpen={alertState.isOpen} 
-        message={alertState.message} 
-        onClose={closeAlert} 
-      />
-
-      <AddIngredientModal 
-        isOpen={isAddModalOpen} 
-        onClose={() => setIsAddModalOpen(false)} 
-        onSave={handleSaveIngredient}
-        initialData={editingIngredient}
-        defaultStorage={activeTab}
-        existingIngredients={ingredients}
-      />
-
-      {isSyncModalOpen && (
-        <DataSyncModal 
-          onClose={() => setIsSyncModalOpen(false)}
-          onImport={handleImportData}
-          ingredients={ingredients}
-          basicSeasonings={basicSeasonings}
-        />
-      )}
-
-      <ApiKeyModal 
-        isOpen={isApiKeyModalOpen} 
-        onClose={() => setIsApiKeyModalOpen(false)} 
-        onSave={handleSaveApiKey}
-        currentKey={customApiKey}
-      />
-
+      </div>
     </div>
   );
-}
+};

@@ -886,7 +886,7 @@ export default function App() {
       {/* Universal Install Guide Modal */}
       {showInstallModal && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowInstallModal(false)}>
-           <div className="bg-white w-[90%] max-w-sm rounded-2xl animate-bounce-in flex flex-col max-h-[75vh] shadow-2xl overflow-hidden my-auto" onClick={(e) => e.stopPropagation()}>
+           <div className="bg-white w-[90%] max-w-sm rounded-2xl animate-bounce-in flex flex-col max-h-[70vh] shadow-2xl overflow-hidden my-auto" onClick={(e) => e.stopPropagation()}>
                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
                    <h3 className="text-xl font-bold text-slate-900">앱 설치 방법</h3>
                    <button onClick={() => setShowInstallModal(false)} className="p-1 bg-slate-100 rounded-full hover:bg-slate-200"><X size={20}/></button>
