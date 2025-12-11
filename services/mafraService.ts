@@ -1,8 +1,6 @@
 import { Ingredient, Recipe, Category } from "../types";
 
 // [확장] 내장 데이터베이스: 한국인 인기 집밥 메뉴 100선 (완성판)
-// 서버 연결 없이 즉시 추천 가능한 안전한 데이터입니다.
-
 const INTERNAL_RECIPE_DB: Recipe[] = [
   // --- [MAIN] 메인 요리 (밥, 면, 국, 메인반찬) ---
   {
@@ -501,7 +499,7 @@ const INTERNAL_RECIPE_DB: Recipe[] = [
   }
 ];
 
-// 레시피별 필요 재료 매핑 (핵심 재료만) - 확장됨
+// 레시피별 필요 재료 매핑 (핵심 재료만)
 const RECIPE_INGREDIENTS: Record<string, string[]> = {
     '돼지고기 김치찌개': ['돼지고기', '김치', '두부', '대파'],
     '된장찌개': ['된장', '두부', '애호박', '양파', '감자'],
@@ -629,62 +627,83 @@ const cleanName = (name: string) => {
   return name.replace(/\(.*\)/g, '').replace(/[0-9]/g, '').trim();
 };
 
-// 검색 엔진
 export const searchPublicRecipes = async (ingredients: Ingredient[], type: 'MAIN' | 'SIDE' | 'SNACK'): Promise<Recipe[]> => {
-    // 1. 내 재료 목록 정규화
-    const myItems = new Set<string>();
-    if (ingredients && Array.isArray(ingredients)) {
-        ingredients.forEach(ing => {
-            if (!ing || !ing.name) return;
-            const name = cleanName(ing.name);
-            if (!name) return;
-            myItems.add(name);
-            if (KEYWORD_MAPPING[name]) myItems.add(KEYWORD_MAPPING[name]);
+    try {
+        // 1. 내 재료 목록 정규화
+        const myItems = new Set<string>();
+        if (ingredients && Array.isArray(ingredients)) {
+            ingredients.forEach(ing => {
+                if (!ing || !ing.name) return;
+                const name = cleanName(ing.name);
+                if (!name) return;
+                myItems.add(name);
+                if (KEYWORD_MAPPING[name]) myItems.add(KEYWORD_MAPPING[name]);
+            });
+        }
+
+        // 2. 카테고리 필터링
+        const candidates = INTERNAL_RECIPE_DB.filter(r => r.recipeType === type);
+
+        // 3. 점수 계산
+        const scoredRecipes = candidates.map(recipe => {
+            const requiredIngredients = RECIPE_INGREDIENTS[recipe.name] || [];
+            let matchCount = 0;
+            const used: string[] = [];
+            const missing: string[] = [];
+
+            requiredIngredients.forEach(req => {
+                const hasItem = Array.from(myItems).some(my => my.includes(req) || req.includes(my));
+                if (hasItem) {
+                    matchCount++;
+                    used.push(req);
+                } else {
+                    missing.push(req);
+                }
+            });
+            
+            return {
+                ...recipe,
+                ingredientsUsed: used,
+                missingIngredients: missing,
+                score: matchCount
+            };
         });
+
+        // 4. 정렬
+        const results = scoredRecipes
+            .filter(r => r.score > 0 || !ingredients || ingredients.length === 0) 
+            .sort((a, b) => {
+                const scoreDiff = b.score - a.score;
+                if (scoreDiff !== 0) return scoreDiff;
+                return Math.random() - 0.5;
+            })
+            .slice(0, 5);
+
+        // 5. 결과 반환 (매칭 실패시 랜덤 추천)
+        if (results.length === 0) {
+            // 랜덤 추천 시, 부족한 재료(missingIngredients)를 전체 필요 재료로 채워서 반환
+            // 이렇게 해야 사용자가 뭘 사야할지 알 수 있음
+            const randomPicks = candidates.sort(() => Math.random() - 0.5).slice(0, 5);
+            return randomPicks.map(recipe => ({
+                ...recipe,
+                ingredientsUsed: [],
+                missingIngredients: RECIPE_INGREDIENTS[recipe.name] || []
+            }));
+        }
+
+        return results;
+    } catch (error) {
+        console.error("Recipe Search Error:", error);
+        // 오류 발생 시 빈 배열 대신 랜덤 추천을 반환하여 앱이 죽지 않게 함
+        const fallback = INTERNAL_RECIPE_DB
+            .filter(r => r.recipeType === type)
+            .sort(() => Math.random() - 0.5)
+            .slice(0, 3)
+            .map(recipe => ({
+                ...recipe,
+                ingredientsUsed: [],
+                missingIngredients: RECIPE_INGREDIENTS[recipe.name] || []
+            }));
+        return fallback;
     }
-
-    // 2. 카테고리 필터링
-    const candidates = INTERNAL_RECIPE_DB.filter(r => r.recipeType === type);
-
-    // 3. 점수 계산 (매칭되는 재료가 많을수록 높은 점수)
-    const scoredRecipes = candidates.map(recipe => {
-        const requiredIngredients = RECIPE_INGREDIENTS[recipe.name] || [];
-        let matchCount = 0;
-        const used: string[] = [];
-        const missing: string[] = [];
-
-        requiredIngredients.forEach(req => {
-            const hasItem = Array.from(myItems).some(my => my.includes(req) || req.includes(my));
-            if (hasItem) {
-                matchCount++;
-                used.push(req);
-            } else {
-                missing.push(req);
-            }
-        });
-        
-        return {
-            ...recipe,
-            ingredientsUsed: used,
-            missingIngredients: missing,
-            score: matchCount
-        };
-    });
-
-    // 4. 정렬: 점수 높은 순 -> 랜덤 (점수가 같으면 섞음)
-    const results = scoredRecipes
-        .filter(r => r.score > 0 || !ingredients || ingredients.length === 0) // 재료가 하나라도 맞거나, 냉장고가 비었으면 추천
-        .sort((a, b) => {
-            const scoreDiff = b.score - a.score;
-            if (scoreDiff !== 0) return scoreDiff;
-            return Math.random() - 0.5; // Same score? Shuffle.
-        })
-        .slice(0, 5); // [변경] 상위 10개 -> 상위 5개로 제한
-
-    // 5. 결과 반환 (만약 매칭되는게 하나도 없으면 랜덤으로 몇 개 추천)
-    if (results.length === 0) {
-        return candidates.sort(() => Math.random() - 0.5).slice(0, 5);
-    }
-
-    return results;
 };
