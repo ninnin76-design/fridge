@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Snowflake, Layers, ChefHat, Search, ArrowLeft, Package, ClipboardList, RefreshCw, ShoppingCart, Heart, Coffee, Utensils, CheckSquare, List, Users, AlertTriangle, Sparkles, Share2, Download, X, MoreVertical, Globe, Loader2, Smartphone } from 'lucide-react';
 import { Ingredient, StorageType, Recipe, Category } from './types';
 import { DEFAULT_BASIC_SEASONINGS, CATEGORY_LABELS, CATEGORY_COLORS, CATEGORY_EMOJIS } from './constants';
@@ -53,6 +53,9 @@ export default function App() {
   const [isInstallable, setIsInstallable] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
   const [isInstalling, setIsInstalling] = useState(false); // Track active installation status
+  
+  // [NEW] Track install start time to prevent premature success messages
+  const installStartRef = useRef<number>(0);
 
   // Alert Modal State
   const [alertState, setAlertState] = useState<{ isOpen: boolean; message: string; onConfirm?: () => void }>({
@@ -75,7 +78,12 @@ export default function App() {
   const loadSavedRecipes = async () => {
     try {
       const dbRecipes = await db.getAllSavedRecipes();
-      setSavedRecipes(dbRecipes || []);
+      // [CRITICAL FIX] 이전 버전의 손상된 데이터(null, id 없음)가 있으면 앱이 멈추므로 필터링
+      const validRecipes = Array.isArray(dbRecipes) 
+        ? dbRecipes.filter(r => r && typeof r === 'object' && r.id && r.name)
+        : [];
+        
+      setSavedRecipes(validRecipes);
     } catch (error) {
       console.error("Failed to load saved recipes:", error);
       setSavedRecipes([]);
@@ -140,6 +148,13 @@ export default function App() {
         setIsInstalling(false);
         setDeferredPrompt(null);
         setIsInstallable(false);
+
+        // [FIX] 조기 발생 이벤트 차단 (설치 시작 후 5초 이내 발생한 완료 이벤트는 무시)
+        // 일부 브라우저에서 설치 '시작' 시점에 appinstalled가 트리거되는 버그 방지
+        if (installStartRef.current > 0 && Date.now() - installStartRef.current < 5000) {
+            return;
+        }
+
         showAlert("설치가 완료되었습니다!\n홈 화면에서 앱을 실행해주세요. 🎉");
     };
 
@@ -606,8 +621,13 @@ export default function App() {
         const { outcome } = await deferredPrompt.userChoice;
         
         if (outcome === 'accepted') {
-           // User accepted, keep loading screen until 'appinstalled' fires
+           // User accepted
            setDeferredPrompt(null);
+           
+           // [FIX] 설치 시작 시점 기록 및 안내 메시지 표시
+           installStartRef.current = Date.now();
+           setIsInstalling(false); // 로딩 오버레이는 닫고 메시지 창으로 대체
+           showAlert("설치중입니다. 조금만 기다려 주세요.");
         } else {
            // User dismissed, hide loading screen
            setIsInstalling(false);
@@ -962,6 +982,97 @@ export default function App() {
               <div className="text-center py-20">
                 <p className="text-slate-500">추천할 수 있는 레시피가 없어요 😭<br/>재료를 더 등록해보세요!</p>
               </div>
+            )}
+          </div>
+        )}
+
+        {view === 'SAVED_RECIPES' && (
+          <div className="animate-fade-in min-h-[50vh]">
+            {savedRecipes.length > 0 ? (
+               <div className="space-y-6 pb-20">
+                   {/* Shopping List Banner */}
+                   {!showShoppingList ? (
+                       <button
+                         onClick={() => setShowShoppingList(true)}
+                         className="w-full bg-white border border-slate-200 p-4 rounded-xl flex items-center justify-between shadow-sm active:scale-95 transition-all group"
+                       >
+                           <div className="flex items-center gap-3">
+                               <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600 group-hover:bg-indigo-100 transition-colors">
+                                   <ShoppingCart size={20} />
+                               </div>
+                               <div className="text-left">
+                                   <h3 className="font-bold text-slate-800 text-sm">부족한 재료 장보기</h3>
+                                   <p className="text-xs text-slate-500">찜한 레시피의 부족한 재료를 확인하세요</p>
+                               </div>
+                           </div>
+                           <List size={20} className="text-slate-400" />
+                       </button>
+                   ) : (
+                       <div className="bg-white border border-indigo-100 rounded-xl overflow-hidden shadow-lg animate-fade-in">
+                           <div className="bg-indigo-50 p-4 border-b border-indigo-100 flex justify-between items-center">
+                               <h3 className="font-bold text-indigo-900 flex items-center gap-2">
+                                   <ShoppingCart size={18} />
+                                   장보기 목록
+                               </h3>
+                               <button 
+                                 onClick={() => setShowShoppingList(false)}
+                                 className="text-indigo-400 hover:text-indigo-700"
+                               >
+                                   <X size={18} />
+                               </button>
+                           </div>
+                           <div className="p-2 max-h-60 overflow-y-auto custom-scrollbar">
+                                {getShoppingList().length > 0 ? (
+                                    getShoppingList().map(item => (
+                                        <div key={item.name} className="flex items-center p-3 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer" onClick={() => handleToggleShoppingItem(item.name)}>
+                                            <div className={`w-5 h-5 rounded border mr-3 flex items-center justify-center transition-colors ${selectedShoppingItems.has(item.name) ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-slate-300 bg-white'}`}>
+                                                {selectedShoppingItems.has(item.name) && <CheckSquare size={14} />}
+                                            </div>
+                                            <div className="flex-1">
+                                                <div className="font-bold text-slate-700 text-sm">{item.name}</div>
+                                                <div className="text-[10px] text-slate-400 truncate w-48">{item.recipes.join(', ')}</div>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-center py-8 text-slate-400 text-sm">
+                                        부족한 재료가 없습니다! 🎉
+                                    </div>
+                                )}
+                           </div>
+                           {getShoppingList().length > 0 && (
+                               <div className="p-3 bg-slate-50 border-t border-slate-100">
+                                   <button 
+                                     onClick={handleConfirmShopping}
+                                     disabled={selectedShoppingItems.size === 0}
+                                     className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold text-sm shadow-md active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2"
+                                   >
+                                       <Package size={16} />
+                                       선택한 재료 냉장고에 넣기 ({selectedShoppingItems.size})
+                                   </button>
+                               </div>
+                           )}
+                       </div>
+                   )}
+
+                   {/* Saved Recipes List */}
+                   {savedRecipes.map(recipe => (
+                        <RecipeCard 
+                            key={recipe.id} 
+                            recipe={recipe} 
+                            isSaved={true}
+                            onToggleSave={handleToggleSaveRecipe}
+                        />
+                    ))}
+               </div>
+            ) : (
+                <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-200">
+                    <div className="bg-pink-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-pink-300">
+                        <Heart size={32} />
+                    </div>
+                    <p className="text-slate-500 font-medium">찜한 레시피가 없습니다.</p>
+                    <p className="text-sm text-slate-400 mt-2">마음에 드는 레시피에 하트를 눌러보세요!</p>
+                </div>
             )}
           </div>
         )}

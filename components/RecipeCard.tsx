@@ -9,6 +9,11 @@ interface Props {
 }
 
 export const RecipeCard: React.FC<Props> = ({ recipe, isSaved = false, onToggleSave }) => {
+  // [CRITICAL FIX] If recipe data is corrupted (null/undefined), render nothing to prevent app crash
+  if (!recipe || !recipe.name) {
+      return null;
+  }
+
   const [expanded, setExpanded] = useState(false);
 
   // Safety checks to prevent crashes if AI returns incomplete data
