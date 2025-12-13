@@ -154,5 +154,16 @@ export const db = {
       tx.oncomplete = () => resolve();
       tx.onerror = () => reject(tx.error);
     });
+  },
+
+  deleteDatabase: async (): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.deleteDatabase(DB_NAME);
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+      request.onblocked = () => {
+        console.warn("Database deletion blocked.");
+      };
+    });
   }
 };

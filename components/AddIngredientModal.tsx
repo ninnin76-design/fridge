@@ -1,8 +1,7 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Check, Save, ChevronDown, ChevronUp, Plus, Search } from 'lucide-react';
 import { Ingredient, StorageType, Category } from '../types';
-import { CATEGORY_LABELS, COMMON_INGREDIENTS, CATEGORY_COLORS } from '../constants';
+import { CATEGORY_LABELS, COMMON_INGREDIENTS, CATEGORY_COLORS, CATEGORY_EMOJIS } from '../constants';
 import { autoDetectCategory, autoDetectStorage } from '../categoryHelper';
 
 interface Props {
@@ -28,11 +27,19 @@ export const AddIngredientModal: React.FC<Props> = ({ isOpen, onClose, onSave, i
   const nameInputRef = useRef<HTMLInputElement>(null);
   const successTimerRef = useRef<any>(null);
   
-  // Track if user explicitly clicked a storage tab (to disable auto-detect on typing)
+  // Track if user explicitly clicked a storage/category tab (to disable auto-detect on typing)
   const [userSelectedStorage, setUserSelectedStorage] = useState(false);
+  const [userSelectedCategory, setUserSelectedCategory] = useState(false);
 
   // Create a set of existing ingredient names for fast lookup
   const existingNames = new Set(existingIngredients.map(i => i.name));
+
+  // Category list for the manual selector
+  const allCategories = [
+    Category.VEGETABLE, Category.FRUIT, Category.MEAT,
+    Category.FISH, Category.DAIRY, Category.GRAIN,
+    Category.PROCESSED, Category.SAUCE, Category.ETC
+  ];
 
   useEffect(() => {
     if (isOpen) {
@@ -43,7 +50,8 @@ export const AddIngredientModal: React.FC<Props> = ({ isOpen, onClose, onSave, i
         setStorage(initialData.storage);
         setExpandedCategory(null); // Collapse lists in edit mode
         setAddedItems(new Set());
-        setUserSelectedStorage(false);
+        setUserSelectedStorage(true); // Lock storage
+        setUserSelectedCategory(true); // Lock category (disable auto-detect)
       } else {
         // Add Mode
         resetForm();
@@ -51,6 +59,7 @@ export const AddIngredientModal: React.FC<Props> = ({ isOpen, onClose, onSave, i
         setExpandedCategory(Category.VEGETABLE); // Default expand vegetable
         setAddedItems(new Set()); // Reset visual selection
         setUserSelectedStorage(false);
+        setUserSelectedCategory(false);
         // NOTE: Auto-focus removed to prevent mobile keyboard from covering the list
       }
     }
@@ -70,6 +79,7 @@ export const AddIngredientModal: React.FC<Props> = ({ isOpen, onClose, onSave, i
       setCategory(Category.VEGETABLE);
       setStorage(defaultStorage);
       setUserSelectedStorage(false);
+      setUserSelectedCategory(false);
     }
   };
 
@@ -77,14 +87,16 @@ export const AddIngredientModal: React.FC<Props> = ({ isOpen, onClose, onSave, i
     const val = e.target.value;
     setName(val);
     
-    // Auto-detect category
-    const detectedCat = autoDetectCategory(val);
-    if (detectedCat) {
-      if (detectedCat === Category.SAUCE) {
-        setCategory(Category.ETC);
-      } else {
-        setCategory(detectedCat);
-      }
+    // Auto-detect category ONLY if user hasn't manually selected one
+    if (!userSelectedCategory) {
+        const detectedCat = autoDetectCategory(val);
+        if (detectedCat) {
+            if (detectedCat === Category.SAUCE) {
+                setCategory(Category.ETC);
+            } else {
+                setCategory(detectedCat);
+            }
+        }
     }
 
     // Auto-detect storage (Fridge/Freezer/Pantry)
@@ -95,6 +107,11 @@ export const AddIngredientModal: React.FC<Props> = ({ isOpen, onClose, onSave, i
             setStorage(detectedStorage);
         }
     }
+  };
+
+  const handleManualCategorySelect = (cat: Category) => {
+      setCategory(cat);
+      setUserSelectedCategory(true); // Disable auto-detect for this session
   };
 
   if (!isOpen) return null;
@@ -121,7 +138,8 @@ export const AddIngredientModal: React.FC<Props> = ({ isOpen, onClose, onSave, i
       // Add Mode - Save and RESET (Continuous Entry)
       onSave(item);
       triggerSuccessFeedback();
-      setName(''); // Clear name only, keep storage
+      setName(''); // Clear name only, keep storage & category context
+      setUserSelectedCategory(false); // Re-enable auto-detect for new item
       // Only focus if user was manually typing
       nameInputRef.current?.focus();
     }
@@ -227,46 +245,69 @@ export const AddIngredientModal: React.FC<Props> = ({ isOpen, onClose, onSave, i
                 실온
               </button>
             </div>
-            <p className="text-xs text-slate-400 text-center mt-2">
-                👆 보관함을 선택하고 재료를 누르세요.
-            </p>
           </div>
 
-          {/* 2. Manual Input Form */}
+          {/* 2. Manual Input Form & Category Selector */}
           <form onSubmit={handleSubmit} className="mb-6 shrink-0 relative">
-            <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">직접 입력</label>
-            <div className="flex gap-2">
-                <input 
-                ref={nameInputRef}
-                type="text" 
-                value={name}
-                onChange={handleNameChange}
-                placeholder="찾는 재료가 없다면 입력하세요"
-                className="flex-1 px-4 py-3 text-base rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50/50 outline-none transition-all font-bold placeholder:font-normal"
-                />
-                <button
-                    type="submit"
-                    className="bg-slate-900 text-white px-4 rounded-xl font-bold shadow-md active:scale-95 transition-transform"
-                >
-                    <Plus size={24} />
-                </button>
-            </div>
-            {name && (
-                <div className="absolute -bottom-5 left-1 flex items-center gap-1">
-                    <span className="text-[10px] text-slate-400">자동 감지:</span>
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${CATEGORY_COLORS[category]}`}>
-                        {CATEGORY_LABELS[category]}
-                    </span>
+            
+            {/* Name Input */}
+            <div className="mb-4">
+                <label className="block text-xs font-bold text-slate-500 mb-1.5 uppercase">재료 이름</label>
+                <div className="flex gap-2">
+                    <input 
+                    ref={nameInputRef}
+                    type="text" 
+                    value={name}
+                    onChange={handleNameChange}
+                    placeholder="예: 삼겹살, 육회, 사과"
+                    className="flex-1 px-4 py-3 text-base rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50/50 outline-none transition-all font-bold placeholder:font-normal"
+                    />
+                    <button
+                        type="submit"
+                        className="bg-slate-900 text-white px-4 rounded-xl font-bold shadow-md active:scale-95 transition-transform"
+                    >
+                        {isEditMode ? <Check size={24}/> : <Plus size={24} />}
+                    </button>
                 </div>
-            )}
+            </div>
+
+            {/* Manual Category Selection (Visible in Edit Mode too) */}
+            <div className="mb-2">
+                <label className="block text-xs font-bold text-slate-500 mb-2 uppercase flex justify-between">
+                    카테고리 선택
+                    {!userSelectedCategory && name && (
+                        <span className="text-[10px] text-indigo-500 font-normal animate-pulse">
+                            자동 감지됨 (변경하려면 아래 버튼 클릭)
+                        </span>
+                    )}
+                </label>
+                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar -mx-1 px-1">
+                    {allCategories.map(cat => (
+                        <button
+                            key={cat}
+                            type="button"
+                            onClick={() => handleManualCategorySelect(cat)}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold whitespace-nowrap border transition-all ${
+                                category === cat 
+                                ? `${CATEGORY_COLORS[cat]} shadow-sm ring-1 ring-offset-1 ring-black/5` 
+                                : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                            }`}
+                        >
+                            <span>{CATEGORY_EMOJIS[cat]}</span>
+                            {CATEGORY_LABELS[cat]}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
           </form>
 
-          {/* 3. Quick Selection List */}
+          {/* 3. Quick Selection List (Hidden in Edit Mode) */}
           {!isEditMode && (
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-3">
                     <div className="h-px bg-slate-200 flex-1"></div>
-                    <span className="text-xs font-bold text-slate-400 uppercase">또는 목록에서 선택</span>
+                    <span className="text-xs font-bold text-slate-400 uppercase">자주 쓰는 재료 빠른 추가</span>
                     <div className="h-px bg-slate-200 flex-1"></div>
                 </div>
                 
@@ -325,16 +366,9 @@ export const AddIngredientModal: React.FC<Props> = ({ isOpen, onClose, onSave, i
                 </div>
               </div>
           )}
-
-          {isEditMode && (
-              <div className="mt-4 p-4 bg-yellow-50 rounded-xl text-xs text-yellow-800 border border-yellow-100 mb-20">
-                  ⚠️ 수정 모드에서는 목록 선택이 비활성화됩니다. 위 입력창을 통해 수정해주세요.
-              </div>
-          )}
-
         </div>
         
-        {/* Footer Save Button (Only for manual edits mostly) */}
+        {/* Footer Save Button (For Edit Mode specifically) */}
         {isEditMode && (
             <div className="p-4 border-t border-slate-100 shrink-0 bg-white">
             <button

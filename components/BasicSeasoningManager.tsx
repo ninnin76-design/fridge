@@ -15,7 +15,7 @@ const COMMON_SUGGESTIONS = Array.from(new Set([
   // Add common staples that are NOT in the default list but user might want
   "굴소스", "칠리소스", "머스타드", "와사비", "겨자", 
   "쌈장", "초고추장", "매실청", "다시다", "미원", "치킨스톡",
-  "버터", "치즈", "카레가루", "짜장가루", "파슬리", "바질", 
+  "버터", "카레가루", "짜장가루", "파슬리", "바질", 
   "돈까스소스", "스테이크소스", "스파게티소스", "연두"
 ]));
 

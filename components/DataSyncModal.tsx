@@ -1,18 +1,18 @@
-
 import React, { useState } from 'react';
-import { X, Clipboard, Check, AlertCircle, Utensils, Package, Upload, Copy, Share2, Info } from 'lucide-react';
+import { X, Clipboard, Check, AlertCircle, Utensils, Package, Upload, Copy, Share2, Info, Trash2, RotateCcw } from 'lucide-react';
 import { Ingredient } from '../types';
 
 interface Props {
   onClose: () => void;
   onImport: (ingredients: Ingredient[], basicSeasonings?: string[]) => void;
+  onReset: () => void;
   ingredients: Ingredient[];
   basicSeasonings: string[];
 }
 
-export const DataSyncModal: React.FC<Props> = ({ onClose, onImport, ingredients, basicSeasonings }) => {
+export const DataSyncModal: React.FC<Props> = ({ onClose, onImport, onReset, ingredients, basicSeasonings }) => {
   // Default to IMPORT if user has no ingredients, otherwise EXPORT
-  const [activeTab, setActiveTab] = useState<'EXPORT' | 'IMPORT'>(
+  const [activeTab, setActiveTab] = useState<'EXPORT' | 'IMPORT' | 'RESET'>(
     ingredients.length > 0 ? 'EXPORT' : 'IMPORT'
   );
   
@@ -106,7 +106,7 @@ export const DataSyncModal: React.FC<Props> = ({ onClose, onImport, ingredients,
       <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         <div className="bg-slate-900 p-4 flex justify-between items-center text-white shrink-0">
           <h2 className="text-lg font-bold flex items-center gap-2">
-            <Share2 size={20} /> 데이터 동기화
+            <Share2 size={20} /> 데이터 관리
           </h2>
           <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-full">
             <X size={20} />
@@ -134,6 +134,16 @@ export const DataSyncModal: React.FC<Props> = ({ onClose, onImport, ingredients,
             }`}
           >
             <Clipboard size={16} /> 받기
+          </button>
+          <button
+            onClick={() => setActiveTab('RESET')}
+            className={`flex-1 py-3 text-sm font-bold transition-all rounded-lg flex items-center justify-center gap-2 ${
+              activeTab === 'RESET' 
+                ? 'bg-white text-red-600 shadow-sm' 
+                : 'text-slate-400 hover:text-slate-600'
+            }`}
+          >
+            <RotateCcw size={16} /> 초기화
           </button>
         </div>
 
@@ -266,6 +276,43 @@ export const DataSyncModal: React.FC<Props> = ({ onClose, onImport, ingredients,
                       </div>
                   )}
                 </>
+            )}
+
+            {/* --- RESET TAB --- */}
+            {activeTab === 'RESET' && (
+                <div className="animate-fade-in flex flex-col h-full justify-center">
+                    <div className="bg-red-50 p-6 rounded-2xl border border-red-100 text-center mb-6">
+                        <div className="w-16 h-16 bg-red-100 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <AlertCircle size={32} />
+                        </div>
+                        <h3 className="text-lg font-bold text-red-700 mb-2">앱 전체 초기화</h3>
+                        <p className="text-sm text-red-600 leading-relaxed mb-4">
+                            앱이 이상하게 동작하거나,<br/>
+                            알 수 없는 재료가 계속 남아있다면<br/>
+                            초기화를 진행해주세요.
+                        </p>
+                        <div className="bg-white p-3 rounded-lg border border-red-100 text-xs text-slate-500 text-left">
+                            <strong className="block mb-1 text-red-600">⚠️ 주의사항</strong>
+                            <ul className="list-disc list-inside space-y-1">
+                                <li>모든 냉장고 재료가 삭제됩니다.</li>
+                                <li>저장한 레시피가 삭제됩니다.</li>
+                                <li>설정한 API 키가 삭제됩니다.</li>
+                                <li>삭제된 데이터는 복구할 수 없습니다.</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <button
+                        onClick={onReset}
+                        className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-xl font-bold text-lg shadow-lg shadow-red-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                    >
+                        <Trash2 size={20} />
+                        모든 데이터 삭제 및 초기화
+                    </button>
+                    <p className="text-xs text-slate-400 text-center mt-3">
+                        버튼을 누르면 확인 창이 뜹니다.
+                    </p>
+                </div>
             )}
         </div>
 

@@ -1,3 +1,4 @@
+
 import { Ingredient, Recipe } from "../types";
 
 // 내부적으로 사용할 레시피 타입 정의 (필요 재료 포함)

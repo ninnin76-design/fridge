@@ -1203,6 +1203,7 @@ export default function App() {
         <DataSyncModal 
           onClose={() => setIsSyncModalOpen(false)}
           onImport={handleImportData}
+          onReset={handleFactoryReset}
           ingredients={ingredients}
           basicSeasonings={basicSeasonings}
         />
