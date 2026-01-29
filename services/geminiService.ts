@@ -1,8 +1,9 @@
-import { GoogleGenAI } from "@google/genai";
+
+import { GoogleGenAI, Type } from "@google/genai";
 import { Ingredient, Recipe, StorageType, Category } from "../types";
 
-// [변경] 시스템 가이드라인에 따른 최신 모델 적용
-const MODEL_NAME = "gemini-2.5-flash";
+// Always use recommended model for standard text tasks
+const MODEL_NAME = "gemini-3-flash-preview";
 
 // Helper to clean JSON string if markdown blocks are present
 function cleanJsonString(text: string): string {
@@ -46,6 +47,7 @@ export const suggestSpecificRecipes = async (
       throw new Error("API Key가 설정되지 않았습니다.");
   }
 
+  // Always initialize GoogleGenAI with a named parameter
   const ai = new GoogleGenAI({ apiKey: finalApiKey });
 
   const inventoryDescription = generateInventoryDescription(ingredients);
@@ -69,21 +71,7 @@ export const suggestSpecificRecipes = async (
     - 아이들이 좋아할 만한 메뉴 위주로 선정해주세요.
     - 창의적이고 맛있는 레시피를 제안해주세요.
 
-    [출력 데이터 형식 (JSON Array)]
-    반드시 아래와 같은 JSON 배열 형식으로만 응답해주세요. 마크다운(backticks)이나 추가 설명 없이 순수 JSON 텍스트만 보내세요.
-    [
-      {
-        "id": "unique_string_id",
-        "name": "요리 이름",
-        "description": "요리에 대한 짧고 맛있는 설명",
-        "emoji": "요리를 대표하는 이모지 1개",
-        "recipeType": "${type}",
-        "ingredientsUsed": ["사용된 보유 재료 이름1", "사용된 보유 재료 이름2"],
-        "missingIngredients": ["마트에서 사야할 재료1", "마트에서 사야할 재료2"],
-        "instructions": ["조리 과정 1", "조리 과정 2", "조리 과정 3"],
-        "cookingTime": "예상 조리 시간 (예: 20분)"
-      }
-    ]
+    결과는 반드시 JSON 배열 형식으로만 응답해주세요.
   `;
 
   let lastError: any = null;
@@ -91,14 +79,36 @@ export const suggestSpecificRecipes = async (
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
+        // Use ai.models.generateContent with model name and prompt/config
         const response = await ai.models.generateContent({
           model: MODEL_NAME,
           contents: prompt,
           config: {
             temperature: 0.7, 
+            // Correct way to request JSON output using responseMimeType and responseSchema
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  id: { type: Type.STRING },
+                  name: { type: Type.STRING },
+                  description: { type: Type.STRING },
+                  emoji: { type: Type.STRING },
+                  recipeType: { type: Type.STRING },
+                  ingredientsUsed: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  missingIngredients: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  instructions: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  cookingTime: { type: Type.STRING }
+                },
+                required: ["name", "description", "emoji", "recipeType", "ingredientsUsed", "missingIngredients", "instructions", "cookingTime"],
+              }
+            }
           },
         });
 
+        // Use response.text property (not a method)
         const text = response.text;
         if (!text) {
             throw new Error("AI 응답이 비어있습니다.");
@@ -184,10 +194,7 @@ export const parseInventoryFromImage = async (base64Image: string, apiKey?: stri
     const prompt = `
       Analyze this image of a refrigerator inventory list.
       Extract ingredients.
-      Return JSON array:
-      [
-        { "name": "Name", "storage": "FRIDGE" | "FREEZER" | "PANTRY", "category": "VEGETABLE" | "FRUIT" | "MEAT" | "FISH" | "DAIRY" | "GRAIN" | "PROCESSED" | "ETC" }
-      ]
+      Return JSON array with properties: name, storage, category.
     `;
 
     const imagePart = {
@@ -207,9 +214,24 @@ export const parseInventoryFromImage = async (base64Image: string, apiKey?: stri
       },
       config: {
         temperature: 0.4,
+        // Enforce JSON structure via config
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              name: { type: Type.STRING },
+              storage: { type: Type.STRING, description: 'FRIDGE, FREEZER, or PANTRY' },
+              category: { type: Type.STRING }
+            },
+            required: ["name", "storage", "category"]
+          }
+        }
       },
     });
 
+    // Use response.text property
     const text = response.text;
     if (!text) return [];
 

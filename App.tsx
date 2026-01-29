@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, Snowflake, Layers, ChefHat, Search, ArrowLeft, Package, ClipboardList, RefreshCw, ShoppingCart, Heart, Coffee, Utensils, CheckSquare, List, Users, AlertTriangle, Sparkles, Share2, Download, X, MoreVertical, Globe, Loader2, Smartphone } from 'lucide-react';
+import { Plus, Snowflake, Layers, ChefHat, Search, ArrowLeft, Package, ClipboardList, RefreshCw, ShoppingCart, Heart, Coffee, Utensils, CheckSquare, List, Users, AlertTriangle, Sparkles, Share2, Download, X, MoreVertical, Globe, Loader2, Smartphone, ArrowRightLeft, Key } from 'lucide-react';
 import { Ingredient, StorageType, Recipe, Category } from './types';
-import { DEFAULT_BASIC_SEASONINGS, CATEGORY_LABELS, CATEGORY_COLORS, CATEGORY_EMOJIS } from './constants';
+import { DEFAULT_BASIC_SEASONINGS, CATEGORY_LABELS, CATEGORY_COLORS, CATEGORY_EMOJIS, STORAGE_LABELS } from './constants';
 import { IngredientItem } from './components/IngredientItem';
 import { AddIngredientModal } from './components/AddIngredientModal';
 import { RecipeCard } from './components/RecipeCard';
@@ -35,26 +35,20 @@ export default function App() {
   const [activeRecipeTab, setActiveRecipeTab] = useState<'MAIN' | 'SIDE' | 'SNACK'>('MAIN');
   const [savedRecipes, setSavedRecipes] = useState<Recipe[]>([]);
   const [isGeneratingRecipes, setIsGeneratingRecipes] = useState(false);
-  const [isUsingAI, setIsUsingAI] = useState(false); // Track if current results are from AI
+  const [isUsingAI, setIsUsingAI] = useState(false); 
   
-  // Tab-specific loading state (allows browsing other tabs while one regenerates)
   const [regeneratingTab, setRegeneratingTab] = useState<'MAIN' | 'SIDE' | 'SNACK' | null>(null);
-
-  // Track background loading for non-active tabs (initial load)
   const [backgroundLoading, setBackgroundLoading] = useState(false);
   
-  // Shopping List State (derived from Saved Recipes)
   const [showShoppingList, setShowShoppingList] = useState(false);
   const [selectedShoppingItems, setSelectedShoppingItems] = useState<Set<string>>(new Set());
 
-  // PWA Install State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [isInstallable, setIsInstallable] = useState(false);
   const [isIOS, setIsIOS] = useState(false);
-  const [isInstalling, setIsInstalling] = useState(false); // Track active installation status
+  const [isInstalling, setIsInstalling] = useState(false); 
   
-  // [NEW] Track install start time to prevent premature success messages
   const installStartRef = useRef<number>(0);
 
   // Alert Modal State
@@ -63,7 +57,6 @@ export default function App() {
     message: '',
   });
 
-  // Helper to show custom alert
   const showAlert = (message: string, onConfirm?: () => void) => {
     setAlertState({ isOpen: true, message, onConfirm });
   };
@@ -78,11 +71,9 @@ export default function App() {
   const loadSavedRecipes = async () => {
     try {
       const dbRecipes = await db.getAllSavedRecipes();
-      // [CRITICAL FIX] 이전 버전의 손상된 데이터(null, id 없음)가 있으면 앱이 멈추므로 필터링
       const validRecipes = Array.isArray(dbRecipes) 
         ? dbRecipes.filter(r => r && typeof r === 'object' && r.id && r.name)
         : [];
-        
       setSavedRecipes(validRecipes);
     } catch (error) {
       console.error("Failed to load saved recipes:", error);
@@ -90,7 +81,6 @@ export default function App() {
     }
   };
 
-  // Load from IndexedDB and LocalStorage on mount
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -98,87 +88,55 @@ export default function App() {
           db.getAllIngredients(),
           db.getAllSeasonings()
         ]);
-
         setIngredients(dbIngredients);
-        // Load saved recipes initially
         await loadSavedRecipes();
-
-        // If seasonings DB is empty (first run), initialize with defaults
         if (dbSeasonings.length === 0) {
            await db.setAllSeasonings(DEFAULT_BASIC_SEASONINGS);
            setBasicSeasonings(DEFAULT_BASIC_SEASONINGS);
         } else {
            setBasicSeasonings(dbSeasonings);
         }
-        
-        // Load Custom API Key
         const savedKey = localStorage.getItem('gemini_api_key');
-        if (savedKey) {
-            setCustomApiKey(savedKey);
-        }
-
+        if (savedKey) setCustomApiKey(savedKey);
       } catch (error) {
         console.error("Failed to load data from DB:", error);
       }
     };
-
     loadData();
-
-    // Check Platform & Standalone Status
     const checkEnvironment = () => {
         const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
         setIsIOS(ios);
-
         const isStandalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
-        
-        // Show install button if NOT in standalone mode (i.e., running in browser)
         setIsInstallable(!isStandalone);
     };
     checkEnvironment();
-
-    // PWA Install Prompt Listener (Chrome/Android)
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e);
       setIsInstallable(true);
     };
-
-    // PWA Installed Success Listener
     const handleAppInstalled = () => {
         setIsInstalling(false);
         setDeferredPrompt(null);
         setIsInstallable(false);
-
-        // [FIX] 조기 발생 이벤트 차단 (설치 시작 후 5초 이내 발생한 완료 이벤트는 무시)
-        // 일부 브라우저에서 설치 '시작' 시점에 appinstalled가 트리거되는 버그 방지
-        if (installStartRef.current > 0 && Date.now() - installStartRef.current < 5000) {
-            return;
-        }
-
+        if (installStartRef.current > 0 && Date.now() - installStartRef.current < 5000) return;
         showAlert("설치가 완료되었습니다!\n홈 화면에서 앱을 실행해주세요. 🎉");
     };
-
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     window.addEventListener('appinstalled', handleAppInstalled);
-
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []);
 
-  // Force reload saved recipes when entering the 'SAVED_RECIPES' view
   useEffect(() => {
-    if (view === 'SAVED_RECIPES') {
-      loadSavedRecipes();
-    }
+    if (view === 'SAVED_RECIPES') loadSavedRecipes();
   }, [view]);
 
   const handleSaveIngredient = async (data: (Omit<Ingredient, 'id'> & { id?: string }) | (Omit<Ingredient, 'id'> & { id?: string })[]) => {
     const dataArray = Array.isArray(data) ? data : [data];
     const itemsToSave: Ingredient[] = [];
-
-    // Prepare Items
     dataArray.forEach(item => {
         const newItem: Ingredient = {
             ...item,
@@ -186,29 +144,35 @@ export default function App() {
         };
         itemsToSave.push(newItem);
     });
-
-    // Save to DB
     await db.bulkAddIngredients(itemsToSave);
-
-    // Update Local State
     setIngredients(prev => {
       let next = [...prev];
       itemsToSave.forEach(newItem => {
           const index = next.findIndex(i => i.id === newItem.id);
-          if (index !== -1) {
-              next[index] = newItem; // Update
-          } else {
-              next.push(newItem); // Add
-          }
+          if (index !== -1) next[index] = newItem;
+          else next.push(newItem);
       });
       return next;
     });
-    
     setEditingIngredient(null);
   };
 
+  const handleQuickMove = async (id: string) => {
+    const item = ingredients.find(i => i.id === id);
+    if (!item) return;
+
+    let nextStorage: StorageType;
+    if (item.storage === StorageType.FRIDGE) nextStorage = StorageType.FREEZER;
+    else if (item.storage === StorageType.FREEZER) nextStorage = StorageType.PANTRY;
+    else nextStorage = StorageType.FRIDGE;
+
+    const updatedItem = { ...item, storage: nextStorage };
+    await db.saveIngredient(updatedItem);
+    
+    setIngredients(prev => prev.map(i => i.id === id ? updatedItem : i));
+  };
+
   const handleDeleteIngredient = async (id: string) => {
-    // Removed confirmation dialog for immediate deletion
     await db.deleteIngredient(id);
     setIngredients(prev => prev.filter(i => i.id !== id));
   };
@@ -218,7 +182,6 @@ export default function App() {
     setIsAddModalOpen(true);
   };
 
-  // Wrapper for updating seasonings to sync with DB
   const updateBasicSeasonings = async (newSeasonings: string[]) => {
       await db.setAllSeasonings(newSeasonings);
       setBasicSeasonings(newSeasonings);
@@ -226,70 +189,39 @@ export default function App() {
 
   const handleToggleSaveRecipe = async (recipe: Recipe) => {
       const isAdded = await db.toggleSavedRecipe(recipe);
-      
-      // Update local state immediately for responsiveness
       setSavedRecipes(prev => {
-          if (!isAdded) {
-              // Removed
-              return prev.filter(r => r.id !== recipe.id);
-          } else {
-              // Added
-              return [recipe, ...prev];
-          }
+          if (!isAdded) return prev.filter(r => r.id !== recipe.id);
+          else return [recipe, ...prev];
       });
   };
 
-  const isRecipeSaved = (id: string) => {
-      return Array.isArray(savedRecipes) && savedRecipes.some(r => r.id === id);
-  };
+  const isRecipeSaved = (id: string) => Array.isArray(savedRecipes) && savedRecipes.some(r => r.id === id);
 
-  // --- Factory Reset Handler ---
   const handleFactoryReset = async () => {
-    if (window.confirm("모든 데이터(재료, 레시피, 설정)가 영구적으로 삭제됩니다.\n정말 초기화 하시겠습니까?")) {
+    if (window.confirm("모든 데이터가 삭제됩니다. 초기화 하시겠습니까?")) {
         try {
-            // 1. Clear IndexedDB
             await db.deleteDatabase();
-            
-            // 2. Clear LocalStorage
             localStorage.clear();
-            
-            // 3. Clear Cache API
             if ('caches' in window) {
                 const cacheNames = await caches.keys();
                 await Promise.all(cacheNames.map(name => caches.delete(name)));
             }
-            
-            // 4. Unregister Service Workers
             if ('serviceWorker' in navigator) {
                 const registrations = await navigator.serviceWorker.getRegistrations();
-                for (const registration of registrations) {
-                    await registration.unregister();
-                }
+                for (const registration of registrations) await registration.unregister();
             }
-            
-            // 5. Alert and Reload
-            alert("초기화되었습니다. 앱을 재시작합니다.");
+            alert("초기화되었습니다.");
             window.location.reload();
         } catch (e) {
-            console.error("Factory Reset Error:", e);
-            alert("초기화 중 오류가 발생했습니다. 앱을 완전히 삭제하고 다시 설치해주세요.");
+            console.error(e);
+            alert("초기화 중 오류가 발생했습니다.");
         }
     }
   };
 
-  // Import Data Handler
   const handleImportData = async (rawIngredients: any[], rawSeasonings?: string[]) => {
-      const ingCount = Array.isArray(rawIngredients) ? rawIngredients.length : 0;
-      const seaCount = Array.isArray(rawSeasonings) ? rawSeasonings.length : 0;
-
-      if (ingCount === 0 && seaCount === 0) {
-        showAlert("추가할 데이터가 없습니다.");
-        return;
-      }
-
       const validIngredients: Ingredient[] = [];
       let counts = { [StorageType.FRIDGE]: 0, [StorageType.FREEZER]: 0, [StorageType.PANTRY]: 0 };
-
       if (Array.isArray(rawIngredients)) {
         rawIngredients.forEach(item => {
           if (!item.name) return;
@@ -297,48 +229,31 @@ export default function App() {
           const s = String(item.storage || '').toUpperCase();
           if (s.includes('FREEZE') || s.includes('냉동')) storage = StorageType.FREEZER;
           else if (s.includes('PANTRY') || s.includes('실온')) storage = StorageType.PANTRY;
-          
           let category = Category.ETC;
           const cRaw = String(item.category || '').trim();
-          const cUpper = cRaw.toUpperCase();
-          if (Object.keys(Category).includes(cUpper)) category = cUpper as Category;
-          else {
-             const matchedKey = Object.keys(CATEGORY_LABELS).find(key => CATEGORY_LABELS[key as Category] === cRaw);
-             if (matchedKey) category = matchedKey as Category;
-          }
-
-          // Check for existing ingredient with same name and storage
-          const exists = ingredients.some(i => 
-              i.name === item.name && i.storage === storage
-          );
-
+          const matchedKey = Object.keys(CATEGORY_LABELS).find(key => CATEGORY_LABELS[key as Category] === cRaw);
+          if (matchedKey) category = matchedKey as Category;
+          const exists = ingredients.some(i => i.name === item.name && i.storage === storage);
           if (!exists) {
               validIngredients.push({
                   id: `imported-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                   name: item.name,
                   quantity: '',
-                  storage: storage,
-                  category: category,
+                  storage, category,
                   isAlwaysAvailable: false
               });
               counts[storage]++;
           }
         });
       }
-
-      const validSeasonings = Array.isArray(rawSeasonings) 
-          ? rawSeasonings.filter(s => typeof s === 'string' && s.trim() !== '')
-          : [];
-
+      const validSeasonings = Array.isArray(rawSeasonings) ? rawSeasonings.filter(s => typeof s === 'string' && s.trim() !== '') : [];
       let addedIngredientsCount = 0;
       let addedSeasoningsCount = 0;
-
       if (validIngredients.length > 0) {
           addedIngredientsCount = validIngredients.length;
           await db.bulkAddIngredients(validIngredients);
           setIngredients(prev => [...prev, ...validIngredients]);
       }
-      
       if (validSeasonings.length > 0) {
           const prevSet = new Set(basicSeasonings);
           const newUnique = validSeasonings.filter(s => !prevSet.has(s));
@@ -349,30 +264,17 @@ export default function App() {
               setBasicSeasonings(mergedSeasonings);
           }
       }
-
       setTimeout(() => {
           if (addedIngredientsCount > 0) {
-            // Smart Tab Switching: Switch to the tab where most items were added
-            if (counts[StorageType.FREEZER] > 0 && counts[StorageType.FREEZER] >= counts[StorageType.FRIDGE]) {
-                setActiveTab(StorageType.FREEZER);
-            } else if (counts[StorageType.PANTRY] > 0 && counts[StorageType.PANTRY] >= counts[StorageType.FRIDGE]) {
-                setActiveTab(StorageType.PANTRY);
-            } else {
-                setActiveTab(StorageType.FRIDGE);
-            }
+            if (counts[StorageType.FREEZER] > 0 && counts[StorageType.FREEZER] >= counts[StorageType.FRIDGE]) setActiveTab(StorageType.FREEZER);
+            else if (counts[StorageType.PANTRY] > 0 && counts[StorageType.PANTRY] >= counts[StorageType.FRIDGE]) setActiveTab(StorageType.PANTRY);
+            else setActiveTab(StorageType.FRIDGE);
           }
-          let msg = `✅ 데이터 동기화 완료!`;
-          if (addedIngredientsCount === 0 && addedSeasoningsCount === 0) msg = `✅ 이미 모든 재료가 최신 상태입니다.`;
-          else {
-              if (addedIngredientsCount > 0) msg += `\n[신규 재료 ${addedIngredientsCount}개]`;
-              if (addedSeasoningsCount > 0) msg += `\n[신규 양념 ${addedSeasoningsCount}개]`;
-          }
-          showAlert(msg);
+          showAlert(`✅ 데이터 동기화 완료!`);
       }, 100);
   };
 
   const filteredIngredients = ingredients.filter(i => i.storage === activeTab);
-
   const groupedIngredients = filteredIngredients.reduce((acc, ingredient) => {
     const cat = ingredient.category || Category.ETC;
     if (!acc[cat]) acc[cat] = [];
@@ -398,113 +300,59 @@ export default function App() {
     return [...ingredients, ...basicSeasoningIngredients];
   };
 
-  // Recipe Generation Logic
   const generateRecipesCommon = async (useAI: boolean) => {
       setView('RECIPES');
-      
-      // Clear previous recipes immediately to prevent stale data visibility
       setRecipes([]);
       setActiveRecipeTab('MAIN');
       setIsGeneratingRecipes(true);
       setBackgroundLoading(false);
       setRegeneratingTab(null);
       setIsUsingAI(useAI);
-
       const allIngredients = getAllAvailableIngredients();
-
       try {
-          // Determine Fetch Function
           let fetchFn: (type: 'MAIN' | 'SIDE' | 'SNACK') => Promise<Recipe[]>;
-          
-          if (useAI) {
-              fetchFn = (type) => suggestAIRecipes(allIngredients, type, type === 'MAIN' ? 3 : 2, customApiKey);
-          } else {
-              fetchFn = (type) => searchPublicRecipes(allIngredients, type);
-          }
-
-          // Step 1: Fetch MAIN dishes FIRST
+          if (useAI) fetchFn = (type) => suggestAIRecipes(allIngredients, type, type === 'MAIN' ? 3 : 2, customApiKey);
+          else fetchFn = (type) => searchPublicRecipes(allIngredients, type);
           const mainRecipes = await fetchFn('MAIN');
-          // SAFETY GUARD: Ensure it's an array before setting state
           setRecipes(Array.isArray(mainRecipes) ? mainRecipes : []);
-          
           setIsGeneratingRecipes(false);
           setBackgroundLoading(true);
-
-          // Step 2: Fetch SIDE and SNACK in background
-          Promise.all([
-              fetchFn('SIDE'),
-              fetchFn('SNACK')
-          ]).then(([sideRecipes, snackRecipes]) => {
-              const safeSide = Array.isArray(sideRecipes) ? sideRecipes : [];
-              const safeSnack = Array.isArray(snackRecipes) ? snackRecipes : [];
-              setRecipes(prev => [...prev, ...safeSide, ...safeSnack]);
+          Promise.all([fetchFn('SIDE'), fetchFn('SNACK')]).then(([sideRecipes, snackRecipes]) => {
+              setRecipes(prev => [...prev, ...(Array.isArray(sideRecipes) ? sideRecipes : []), ...(Array.isArray(snackRecipes) ? snackRecipes : [])]);
               setBackgroundLoading(false);
-          }).catch(err => {
-              console.warn("Background recipe fetch failed", err);
-              setBackgroundLoading(false);
-          });
-
+          }).catch(() => setBackgroundLoading(false));
       } catch (error: any) {
-          console.error("Error generating recipes:", error);
           setIsGeneratingRecipes(false);
-          
-          // [Modified] Display detailed error message in alert
           showAlert(`AI 연결에 실패했습니다.\n\n${error.message}`);
       }
   };
 
   const handleGeneratePublicRecipes = () => generateRecipesCommon(false);
-  
   const handleGenerateAIRecipes = () => {
-      // [Modified] Check for API Key first
       if (!customApiKey) {
-          // Use showAlert instead of alert(), and pass a callback to open settings
-          showAlert("AI 셰프 기능을 이용하려면 API 키 설정이 필요합니다.\n설정 창에서 키를 입력해주세요.", () => {
-              setIsApiKeyModalOpen(true);
-          });
+          showAlert("AI 기능을 위해 API 키 설정이 필요합니다.", () => setIsApiKeyModalOpen(true));
           return;
       }
-
-      // PERMANENCE CHECK:
-      // If we already have AI recipes generated and we are in AI mode, 
-      // just show the existing list instead of regenerating.
       if (recipes.length > 0 && isUsingAI) {
           setView('RECIPES');
           return;
       }
-
       generateRecipesCommon(true);
   };
 
   const handleRegenerateCurrentCategory = async () => {
       if (regeneratingTab) return;
-
       const targetTab = activeRecipeTab;
       setRegeneratingTab(targetTab);
-      
       const allIngredients = getAllAvailableIngredients();
-      let newRecipes: Recipe[] = [];
-
       try {
-        if (isUsingAI) {
-            newRecipes = await suggestAIRecipes(allIngredients, targetTab, targetTab === 'MAIN' ? 3 : 2, customApiKey);
-        } else {
-            newRecipes = await searchPublicRecipes(allIngredients, targetTab);
-        }
-        
-        const safeRecipes = Array.isArray(newRecipes) ? newRecipes : [];
-
-        setRecipes(prev => {
-            const others = prev.filter(r => r.recipeType !== targetTab);
-            return [...others, ...safeRecipes];
-        });
+        const newRecipes = isUsingAI 
+          ? await suggestAIRecipes(allIngredients, targetTab, targetTab === 'MAIN' ? 3 : 2, customApiKey)
+          : await searchPublicRecipes(allIngredients, targetTab);
+        setRecipes(prev => [...prev.filter(r => r.recipeType !== targetTab), ...(Array.isArray(newRecipes) ? newRecipes : [])]);
       } catch (e: any) {
-          console.error("Regeneration failed", e);
-          setRegeneratingTab(null); // Clear loading state immediately on error
-          // [Modified] Show detailed error
-          showAlert(`다시 추천받기에 실패했습니다.\n\n${e.message}`);
+          showAlert(`실패했습니다.\n\n${e.message}`);
       }
-      
       setRegeneratingTab(null);
   };
 
@@ -513,7 +361,7 @@ export default function App() {
   const getShoppingList = () => {
       const listMap = new Map<string, string[]>();
       savedRecipes.forEach(recipe => {
-          if (recipe.missingIngredients && recipe.missingIngredients.length > 0) {
+          if (recipe.missingIngredients) {
               recipe.missingIngredients.forEach(ing => {
                   const cleanedName = ing.trim();
                   if (!listMap.has(cleanedName)) listMap.set(cleanedName, []);
@@ -533,299 +381,158 @@ export default function App() {
 
   const handleConfirmShopping = async () => {
       if (selectedShoppingItems.size === 0) return;
-      
       const itemsToBuy = Array.from(selectedShoppingItems) as string[];
       const newIngredients: Ingredient[] = [];
-
-      // 1. Add to Inventory
       itemsToBuy.forEach(name => {
            const category = autoDetectCategory(name) || Category.ETC;
            let storage = StorageType.FRIDGE;
            if (category === Category.GRAIN || category === Category.SAUCE || category === Category.ETC) storage = StorageType.PANTRY;
-           
            newIngredients.push({
                id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-               name: name, 
-               category, 
-               storage, 
-               quantity: '', 
-               isAlwaysAvailable: false
+               name, category, storage, quantity: '', isAlwaysAvailable: false
            });
       });
-
       await handleSaveIngredient(newIngredients);
-
-      // 2. Remove from Missing Ingredients in Saved Recipes
       const updatedRecipes = savedRecipes.map(r => {
           if (!r.missingIngredients) return r;
-          
-          // Filter out items that are now bought
           const remaining = r.missingIngredients.filter(ing => !selectedShoppingItems.has(ing));
-          
-          // If no change, return original
-          if (remaining.length === r.missingIngredients.length) return r;
-          
           return { ...r, missingIngredients: remaining };
       });
-
-      // 3. Update DB only if changes occurred
-      const changedRecipes = updatedRecipes.filter((r, i) => r !== savedRecipes[i]);
-      if (changedRecipes.length > 0) {
-          await db.bulkUpdateSavedRecipes(changedRecipes);
-          setSavedRecipes(updatedRecipes);
-      }
-
-      showAlert(`${itemsToBuy.length}개의 재료를 냉장고에 등록했습니다! 🎊`);
+      await db.bulkUpdateSavedRecipes(updatedRecipes);
+      setSavedRecipes(updatedRecipes);
+      showAlert(`${itemsToBuy.length}개의 재료를 등록했습니다!`);
       setSelectedShoppingItems(new Set());
   };
   
   const handleSaveApiKey = (key: string) => {
       setCustomApiKey(key);
-      if (key) {
-        localStorage.setItem('gemini_api_key', key);
-      } else {
-        localStorage.removeItem('gemini_api_key');
-      }
+      if (key) localStorage.setItem('gemini_api_key', key);
+      else localStorage.removeItem('gemini_api_key');
   };
 
-  // --- Share & Install Handlers ---
   const handleShare = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href);
-      showAlert('주소가 복사되었습니다! 카톡으로 친구에게 공유해보세요.');
+      showAlert('주소가 복사되었습니다!');
     } catch (err) {
-      showAlert('주소 복사에 실패했습니다.');
+      showAlert('실패했습니다.');
     }
   };
 
   const handleInstallClick = async () => {
-    const userAgent = navigator.userAgent.toLowerCase();
-    const isAndroid = /android/.test(userAgent);
-    const isInApp = /kakaotalk|naver|line|instagram/.test(userAgent);
-
-    // 1. Android In-App Browser Breakout (Kakao, Naver, etc.)
-    if (isAndroid && isInApp) {
-        const url = window.location.href.replace(/^https?:\/\//, '');
-        const intentUrl = `intent://${url}#Intent;scheme=https;package=com.android.chrome;end`;
-        window.location.href = intentUrl;
-        return;
-    }
-
-    // 2. Native Install Prompt (Chrome/Edge/Samsung Internet)
     if (deferredPrompt) {
-      // Trigger the loading overlay immediately
       setIsInstalling(true);
-      
       try {
         await deferredPrompt.prompt();
         const { outcome } = await deferredPrompt.userChoice;
-        
         if (outcome === 'accepted') {
-           // User accepted
            setDeferredPrompt(null);
-           
-           // [FIX] 설치 시작 시점 기록 및 안내 메시지 표시
            installStartRef.current = Date.now();
-           setIsInstalling(false); // 로딩 오버레이는 닫고 메시지 창으로 대체
-           showAlert("설치중입니다. 조금만 기다려 주세요.");
-        } else {
-           // User dismissed, hide loading screen
            setIsInstalling(false);
-        }
+           showAlert("설치 중입니다.");
+        } else setIsInstalling(false);
       } catch (e) {
-        console.error("Install Prompt Error:", e);
         setIsInstalling(false);
       }
-    } else {
-      // 3. Manual Instructions
-      setShowInstallModal(true);
-    }
+    } else setShowInstallModal(true);
   };
 
-  if (view === 'TOTAL') {
-    return (
-      <TotalListView 
-        ingredients={ingredients} 
-        basicSeasonings={basicSeasonings}
-        onClose={() => setView('INVENTORY')} 
-      />
-    );
-  }
-
-  if (view === 'SEASONINGS') {
-    return (
-      <BasicSeasoningManager 
-        seasonings={basicSeasonings} 
-        onUpdate={updateBasicSeasonings} 
-        onClose={() => setView('INVENTORY')} 
-      />
-    );
-  }
+  const fridgeCount = ingredients.filter(i => i.storage === StorageType.FRIDGE).length;
+  const freezerCount = ingredients.filter(i => i.storage === StorageType.FREEZER).length;
+  const pantryCount = ingredients.filter(i => i.storage === StorageType.PANTRY).length;
 
   return (
     <div className="min-h-screen pb-20 max-w-md mx-auto bg-gray-50 shadow-2xl overflow-hidden relative">
-      
       {/* Header */}
       <header className="bg-white px-4 pt-12 pb-4 sticky top-0 z-10 border-b border-gray-100 flex items-center justify-between app-header">
-        {(view === 'RECIPES' || view === 'SAVED_RECIPES') ? (
-          <button onClick={() => setView('INVENTORY')} className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-full">
-            <ArrowLeft />
-          </button>
+        {(view === 'RECIPES' || view === 'SAVED_RECIPES' || view === 'TOTAL' || view === 'SEASONINGS') ? (
+          <button onClick={() => setView('INVENTORY')} className="p-2 -ml-2 text-slate-600 hover:bg-slate-100 rounded-full"><ArrowLeft /></button>
         ) : (
           <div className="flex flex-col min-w-0 mr-2">
-            <h1 className="text-lg sm:text-2xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-indigo-800 whitespace-nowrap leading-none mb-1 truncate">
-              엄마의 냉장고
-            </h1>
-            <p className="text-[10px] sm:text-xs font-bold text-slate-500 tracking-wide whitespace-nowrap opacity-75 truncate">
-              오늘 뭐 먹지 고민 해결! 🥘
-            </p>
+            <h1 className="text-lg sm:text-2xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-indigo-800 whitespace-nowrap leading-none mb-1 truncate">엄마의 냉장고</h1>
+            <p className="text-[10px] sm:text-xs font-bold text-slate-500 tracking-wide whitespace-nowrap opacity-75 truncate">오늘 뭐 먹지 고민 해결! 🥘</p>
           </div>
         )}
-        
         <div className="flex gap-1 bg-slate-100 p-1 rounded-full shrink-0">
           {view === 'INVENTORY' && (
             <div className="flex gap-0.5">
-                {/* Install button removed from header to use bottom banner exclusively */}
-                <button 
-                  onClick={handleShare}
-                  className="bg-white p-1.5 rounded-full text-slate-600 shadow-sm hover:text-indigo-600 transition-colors"
-                  title="주소 공유하기"
-                >
-                  <Share2 size={16} />
-                </button>
-                <button 
-                  onClick={() => setIsSyncModalOpen(true)}
-                  className="bg-white p-1.5 rounded-full text-slate-600 shadow-sm hover:text-green-600 transition-colors"
-                  title="데이터 동기화 (아이들과 공유)"
-                >
-                  <Users size={16} />
-                </button>
-                <button 
-                  onClick={() => setView('SEASONINGS')}
-                  className="bg-white p-1.5 rounded-full text-slate-600 shadow-sm hover:text-amber-600 transition-colors"
-                  title="기본 양념/소스 관리"
-                >
-                  <SaltShakerIcon size={16} />
-                </button>
-                <button 
-                  onClick={() => setView('TOTAL')}
-                  className="bg-white p-1.5 rounded-full text-slate-600 shadow-sm hover:text-slate-900 transition-colors"
-                  title="전체 재고 확인"
-                >
-                  <ClipboardList size={16} />
-                </button>
+                <button onClick={handleShare} className="bg-white p-1.5 rounded-full text-slate-600 shadow-sm hover:text-indigo-600 transition-colors"><Share2 size={16} /></button>
+                <button onClick={() => setIsSyncModalOpen(true)} className="bg-white p-1.5 rounded-full text-slate-600 shadow-sm hover:text-green-600 transition-colors"><Users size={16} /></button>
+                <button onClick={() => setView('SEASONINGS')} className="bg-white p-1.5 rounded-full text-slate-600 shadow-sm hover:text-amber-600 transition-colors"><SaltShakerIcon size={16} /></button>
+                <button onClick={() => setView('TOTAL')} className="bg-white p-1.5 rounded-full text-slate-600 shadow-sm hover:text-slate-900 transition-colors"><ClipboardList size={16} /></button>
             </div>
           )}
         </div>
-        
         {view === 'INVENTORY' && (
-            <button 
-            onClick={() => setView('SAVED_RECIPES')}
-            className="bg-pink-50 p-2 rounded-full text-pink-500 hover:bg-pink-100 transition-colors relative ml-1 shrink-0"
-            title="찜한 레시피"
-            >
+            <button onClick={() => setView('SAVED_RECIPES')} className="bg-pink-50 p-2 rounded-full text-pink-500 hover:bg-pink-100 transition-colors relative ml-1 shrink-0">
             <Heart size={20} fill={savedRecipes.length > 0 ? "currentColor" : "none"} />
-            {savedRecipes.length > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
-                    {savedRecipes.length}
-                </span>
-            )}
+            {savedRecipes.length > 0 && <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">{savedRecipes.length}</span>}
             </button>
-        )}
-        
-        {view === 'RECIPES' && (
-          <h1 className="text-xl font-bold text-slate-800">추천 메뉴</h1>
-        )}
-        {view === 'SAVED_RECIPES' && (
-          <h1 className="text-xl font-bold text-slate-800">찜한 레시피</h1>
         )}
       </header>
 
       {/* Main Content */}
       <main className="p-4">
-        
         {view === 'INVENTORY' && (
           <>
-            <div className="mb-6 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-5 text-white shadow-lg relative overflow-hidden app-stats">
+            {/* Redesigned Hero Dashboard Card */}
+            <div className="mb-6 bg-gradient-to-br from-[#6366f1] to-[#a855f7] rounded-[32px] p-8 text-white shadow-xl relative overflow-hidden app-stats">
                <div className="relative z-10">
-                 <h2 className="font-bold text-lg mb-1">재료가 {ingredients.length}개 있어요!</h2>
-                 <p className="text-indigo-100 text-sm mb-4">아이들이 배고파하나요? 지금 바로 확인해보세요.</p>
-                 <div className="flex gap-3 items-end mt-2">
+                 <div className="mb-1">
+                    <h2 className="text-2xl font-black tracking-tight leading-tight">재료가 {ingredients.length}개 있어요!</h2>
+                    <p className="text-white/80 text-sm font-medium mt-1">아이들이 배고파하나요? 지금 바로 확인해보세요.</p>
+                 </div>
+
+                 <div className="flex gap-3 mt-8">
                     <button 
-                      onClick={handleGeneratePublicRecipes}
-                      className="flex-1 min-w-0 h-12 bg-white text-indigo-600 rounded-xl font-bold text-base shadow-lg shadow-indigo-900/20 active:scale-95 transition-transform flex items-center justify-center gap-2 whitespace-nowrap"
+                      onClick={handleGeneratePublicRecipes} 
+                      className="flex-1 h-14 bg-white text-[#6366f1] rounded-2xl font-black text-base shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2"
                     >
-                      <ChefHat size={20} />
-                      요리추천
+                        <ChefHat size={20} /> 요리추천
                     </button>
-                    <div className="flex-1 min-w-0 flex flex-col items-end gap-2">
-                        <button 
-                           onClick={() => setIsApiKeyModalOpen(true)}
-                           className="w-8 h-8 flex items-center justify-center bg-white/25 text-white hover:bg-white/40 rounded-full transition-colors shadow-sm backdrop-blur-sm"
-                           title="AI API 키 설정"
-                        >
-                           <CustomKeyIcon size={20} />
-                        </button>
-                        <button 
-                        onClick={handleGenerateAIRecipes}
-                        className="w-full h-12 bg-purple-700 text-white rounded-xl font-bold text-base shadow-lg shadow-purple-900/20 active:scale-95 transition-transform flex items-center justify-center gap-2 border border-purple-500 whitespace-nowrap"
-                        >
-                        <Sparkles size={20} />
-                        AI 추천
-                        </button>
+                    <div className="flex-1 relative">
+                      <button 
+                        onClick={handleGenerateAIRecipes} 
+                        className="w-full h-14 bg-black/20 text-white rounded-2xl font-black text-base shadow-sm active:scale-95 transition-all flex items-center justify-center gap-2 border border-white/10 backdrop-blur-md"
+                      >
+                          <Sparkles size={20} /> AI 추천
+                      </button>
+                      
+                      {/* API Key Access Button - Relocated to top right of AI Recommendation button and icon changed to Key */}
+                      <button 
+                        onClick={() => setIsApiKeyModalOpen(true)} 
+                        className="absolute -top-3 -right-2 w-10 h-10 flex items-center justify-center bg-white/20 text-white hover:bg-white/30 rounded-full transition-all backdrop-blur-md shadow-lg border border-white/10"
+                        title="API 키 설정"
+                      >
+                         <Key size={18} />
+                      </button>
                     </div>
                  </div>
                </div>
-               <div className="absolute -right-4 -bottom-8 opacity-20 transform rotate-12">
-                 <ChefHat size={120} />
+               
+               <div className="absolute -right-8 -bottom-12 opacity-10 transform rotate-[-15deg] pointer-events-none">
+                  <ChefHat size={180} />
                </div>
             </div>
 
             {/* Storage Tabs */}
             <div className="flex p-1 bg-gray-200 rounded-xl mb-4 gap-0.5 app-nav">
-              <button
-                onClick={() => setActiveTab(StorageType.FRIDGE)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
-                  activeTab === StorageType.FRIDGE 
-                    ? 'bg-white text-slate-800 shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                <Layers size={15} />
-                냉장 ({ingredients.filter(i => i.storage === StorageType.FRIDGE).length})
+              <button onClick={() => setActiveTab(StorageType.FRIDGE)} className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all ${activeTab === StorageType.FRIDGE ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                <Layers size={15} />{STORAGE_LABELS[StorageType.FRIDGE]} ({fridgeCount})
               </button>
-              <button
-                onClick={() => setActiveTab(StorageType.FREEZER)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
-                  activeTab === StorageType.FREEZER 
-                    ? 'bg-white text-blue-600 shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                <Snowflake size={15} />
-                냉동 ({ingredients.filter(i => i.storage === StorageType.FREEZER).length})
+              <button onClick={() => setActiveTab(StorageType.FREEZER)} className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all ${activeTab === StorageType.FREEZER ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                <Snowflake size={15} />{STORAGE_LABELS[StorageType.FREEZER]} ({freezerCount})
               </button>
-              <button
-                onClick={() => setActiveTab(StorageType.PANTRY)}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
-                  activeTab === StorageType.PANTRY 
-                    ? 'bg-white text-amber-600 shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-700'
-                }`}
-              >
-                <Package size={15} />
-                실온 ({ingredients.filter(i => i.storage === StorageType.PANTRY).length})
+              <button onClick={() => setActiveTab(StorageType.PANTRY)} className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-all ${activeTab === StorageType.PANTRY ? 'bg-white text-amber-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+                <Package size={15} />{STORAGE_LABELS[StorageType.PANTRY]} ({pantryCount})
               </button>
             </div>
 
             <div className="space-y-4 pb-20">
               {filteredIngredients.length === 0 ? (
                 <div className="text-center py-12 animate-fade-in">
-                  <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 text-gray-400">
-                    <Search size={24} />
-                  </div>
-                  <p className="text-gray-500 font-medium">등록된 재료가 없어요.</p>
-                  <p className="text-gray-400 text-sm mt-1">아래 + 버튼을 눌러 추가해주세요.</p>
+                  <div className="bg-gray-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-3 text-gray-400"><Search size={24} /></div>
+                  <p className="text-gray-500 font-medium">이곳은 비어있습니다.</p>
                 </div>
               ) : (
                 categoryOrder.map(cat => {
@@ -834,11 +541,8 @@ export default function App() {
                   return (
                     <div key={cat} className="animate-fade-in">
                       <div className="flex items-center gap-2 mb-2 px-1">
-                        <h3 className="font-bold text-slate-700 text-sm flex items-center">
-                            <span className="mr-1.5 text-lg leading-none">{CATEGORY_EMOJIS[cat]}</span>
-                            {CATEGORY_LABELS[cat]}
-                        </h3>
-                        <span className="bg-gray-100 text-gray-500 text-xs px-1.5 py-0.5 rounded-full font-medium">{items.length}</span>
+                        <h3 className="font-bold text-slate-700 text-xs flex items-center"><span className="mr-1.5 text-lg leading-none">{CATEGORY_EMOJIS[cat]}</span>{CATEGORY_LABELS[cat]}</h3>
+                        <span className="bg-gray-100 text-gray-500 text-[10px] px-1.5 py-0.5 rounded-full font-bold">{items.length}</span>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         {items.map(ingredient => (
@@ -847,6 +551,7 @@ export default function App() {
                             ingredient={ingredient} 
                             onDelete={handleDeleteIngredient}
                             onEdit={handleEditIngredient}
+                            onQuickMove={handleQuickMove}
                           />
                         ))}
                       </div>
@@ -862,127 +567,33 @@ export default function App() {
           <div className="animate-fade-in">
             {isGeneratingRecipes && recipes.length === 0 ? (
               <div className="text-center py-20">
-                <div className="animate-bounce mb-4 text-4xl">
-                    {isUsingAI ? '🤖' : '🧑‍🍳'}
-                </div>
-                {recipes.length > 0 ? (
-                    <>
-                        <h2 className="text-xl font-bold text-slate-800 mb-2">
-                             메뉴를 다시 생각 중입니다!
-                        </h2>
-                        <p className="text-slate-500">조금만 기다려주세요...</p>
-                    </>
-                ) : (
-                    <>
-                        <h2 className="text-xl font-bold text-slate-800 mb-2">
-                            {isUsingAI ? 'AI 셰프가 고민 중!' : '공공 레시피를 찾는 중!'}
-                        </h2>
-                        <p className="text-slate-500">
-                            {isUsingAI 
-                                ? '당신의 재료로 창의적인 요리를 생각하고 있습니다...' 
-                                : '내장된 레시피 데이터베이스에서 맛있는 요리를 찾고 있습니다...'
-                            }
-                        </p>
-                    </>
-                )}
+                <div className="animate-bounce mb-4 text-4xl">{isUsingAI ? '🤖' : '🧑‍🍳'}</div>
+                <h2 className="text-xl font-bold text-slate-800 mb-2">요리 추천 중...</h2>
               </div>
             ) : recipes.length > 0 ? (
               <div className="pb-10">
                 <div className="flex p-1 bg-gray-200 rounded-xl mb-6 gap-0.5 sticky top-[5.5rem] z-10 shadow-sm">
                   {['MAIN', 'SIDE', 'SNACK'].map(tab => (
-                     <button
-                     key={tab}
-                     onClick={() => setActiveRecipeTab(tab as any)}
-                     className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-bold transition-all relative whitespace-nowrap ${
-                       activeRecipeTab === tab 
-                         ? 'bg-white text-indigo-700 shadow-sm' 
-                         : 'text-slate-500 hover:text-slate-700'
-                     }`}
-                   >
-                     {tab === 'MAIN' ? <ChefHat size={16} /> : tab === 'SIDE' ? <Utensils size={16} /> : <Coffee size={16} />} 
+                     <button key={tab} onClick={() => setActiveRecipeTab(tab as any)} className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-bold transition-all ${activeRecipeTab === tab ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
                      {tab === 'MAIN' ? '메인요리' : tab === 'SIDE' ? '반찬' : '간식'}
-                     {/* Loading Indicators */}
-                     {(backgroundLoading && activeRecipeTab !== tab && (recipes.filter(r => r.recipeType === tab).length === 0)) || regeneratingTab === tab ? (
-                         <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-indigo-500 rounded-full animate-ping"></span>
-                     ) : null}
                    </button>
                   ))}
                 </div>
-
                 <div className="animate-fade-in min-h-[50vh]">
                     {regeneratingTab === activeRecipeTab ? (
                          <div className="flex flex-col items-center justify-center py-20 h-full animate-fade-in">
                             <div className="animate-spin text-indigo-500 mb-4"><RefreshCw size={32}/></div>
-                            <h3 className="text-lg font-bold text-slate-700 text-center leading-relaxed">
-                                {isUsingAI ? 'AI 셰프가' : '다른 추천'}<br/>
-                                {activeRecipeTab === 'MAIN' ? '메인 요리' : activeRecipeTab === 'SIDE' ? '반찬' : '간식'} 메뉴를<br/>
-                                다시 찾고 있어요!
-                            </h3>
+                            <h3 className="text-lg font-bold text-slate-700 text-center">다시 추천 중...</h3>
                         </div>
                     ) : displayRecipes.length > 0 ? (
-                        displayRecipes.map(recipe => (
-                            <RecipeCard 
-                                key={recipe.id} 
-                                recipe={recipe} 
-                                isSaved={isRecipeSaved(recipe.id)}
-                                onToggleSave={handleToggleSaveRecipe}
-                            />
-                        ))
-                    ) : (
-                         <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-200">
-                             {backgroundLoading ? (
-                                <>
-                                    <div className="animate-spin text-indigo-500 mb-2 mx-auto"><RefreshCw size={24}/></div>
-                                    <p className="text-slate-500 font-medium">메뉴를 불러오고 있습니다...</p>
-                                </>
-                             ) : (
-                                <>
-                                    <p className="text-slate-400 font-medium">추천된 메뉴가 없습니다.</p>
-                                    <p className="text-xs text-slate-300 mt-2">다른 카테고리를 확인해보세요.</p>
-                                </>
-                             )}
-                         </div>
-                    )}
+                        displayRecipes.map(recipe => <RecipeCard key={recipe.id} recipe={recipe} isSaved={isRecipeSaved(recipe.id)} onToggleSave={handleToggleSaveRecipe} />)
+                    ) : <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-200">추천 결과가 없습니다.</div>}
                 </div>
-
-                {/* AI Disclaimer */}
-                <div className="my-8 p-4 bg-gray-50 rounded-xl border border-gray-100 flex items-start gap-3">
-                    <AlertTriangle size={18} className="text-amber-500 shrink-0 mt-0.5" />
-                    <p className="text-xs text-slate-500 leading-relaxed">
-                        <strong>{isUsingAI ? 'AI 셰프 안내' : '추천 레시피 안내'}:</strong><br/>
-                        {isUsingAI 
-                            ? '생성형 AI(Gemini)가 추천한 레시피로, 실제 조리법과 다를 수 있습니다.' 
-                            : '검증된 인기 레시피 데이터베이스를 기반으로 추천된 결과입니다.'
-                        }
-                    </p>
-                </div>
-
-                {/* Regenerate Button - NOW FOR BOTH MODES */}
                 <div className="pt-4 pb-4 text-center">
-                    <button
-                        onClick={handleRegenerateCurrentCategory}
-                        disabled={regeneratingTab !== null}
-                        className="bg-white text-indigo-600 border border-indigo-200 px-6 py-3 rounded-xl font-bold text-sm shadow-sm hover:bg-indigo-50 active:scale-95 transition-all flex items-center gap-2 mx-auto disabled:opacity-50 disabled:active:scale-100 whitespace-nowrap"
-                    >
-                        <RefreshCw size={18} className={regeneratingTab ? 'animate-spin' : ''} />
-                        {regeneratingTab 
-                            ? '메뉴 다시 찾는 중...' 
-                            : isUsingAI 
-                                ? `${activeRecipeTab === 'MAIN' ? '메인' : activeRecipeTab === 'SIDE' ? '반찬' : '간식'} 다시 받기`
-                                : `${activeRecipeTab === 'MAIN' ? '메인' : activeRecipeTab === 'SIDE' ? '반찬' : '간식'} 다시 검색`
-                        }
-                    </button>
-                    <p className="text-xs text-slate-400 mt-2">
-                        {isUsingAI ? '현재 탭의 메뉴를 AI에게 다시 요청합니다.' : '현재 재료로 만들 수 있는 다른 메뉴를 찾아봅니다.'}
-                    </p>
+                    <button onClick={handleRegenerateCurrentCategory} disabled={regeneratingTab !== null} className="bg-white text-indigo-600 border border-indigo-200 px-6 py-3 rounded-xl font-bold text-sm shadow-sm hover:bg-indigo-50 active:scale-95 transition-all flex items-center gap-2 mx-auto"><RefreshCw size={18} className={regeneratingTab ? 'animate-spin' : ''} />{regeneratingTab ? '추천 중...' : '다른 메뉴 추천받기'}</button>
                 </div>
-                
               </div>
-            ) : (
-              <div className="text-center py-20">
-                <p className="text-slate-500">추천할 수 있는 레시피가 없어요 😭<br/>재료를 더 등록해보세요!</p>
-              </div>
-            )}
+            ) : <div className="text-center py-20"><p className="text-slate-500">추천할 수 있는 레시피가 없어요 😭</p></div>}
           </div>
         )}
 
@@ -990,232 +601,57 @@ export default function App() {
           <div className="animate-fade-in min-h-[50vh]">
             {savedRecipes.length > 0 ? (
                <div className="space-y-6 pb-20">
-                   {/* Shopping List Banner */}
                    {!showShoppingList ? (
-                       <button
-                         onClick={() => setShowShoppingList(true)}
-                         className="w-full bg-white border border-slate-200 p-4 rounded-xl flex items-center justify-between shadow-sm active:scale-95 transition-all group"
-                       >
+                       <button onClick={() => setShowShoppingList(true)} className="w-full bg-white border border-slate-200 p-4 rounded-xl flex items-center justify-between shadow-sm active:scale-95 transition-all group">
                            <div className="flex items-center gap-3">
-                               <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600 group-hover:bg-indigo-100 transition-colors">
-                                   <ShoppingCart size={20} />
-                               </div>
-                               <div className="text-left">
-                                   <h3 className="font-bold text-slate-800 text-sm">부족한 재료 장보기</h3>
-                                   <p className="text-xs text-slate-500">찜한 레시피의 부족한 재료를 확인하세요</p>
-                               </div>
+                               <div className="bg-indigo-50 p-2 rounded-lg text-indigo-600 group-hover:bg-indigo-100 transition-colors"><ShoppingCart size={20} /></div>
+                               <div className="text-left"><h3 className="font-bold text-slate-800 text-sm">부족한 재료 장보기</h3><p className="text-xs text-slate-500">찜한 레시피 재료 확인</p></div>
                            </div>
                            <List size={20} className="text-slate-400" />
                        </button>
                    ) : (
                        <div className="bg-white border border-indigo-100 rounded-xl overflow-hidden shadow-lg animate-fade-in">
-                           <div className="bg-indigo-50 p-4 border-b border-indigo-100 flex justify-between items-center">
-                               <h3 className="font-bold text-indigo-900 flex items-center gap-2">
-                                   <ShoppingCart size={18} />
-                                   장보기 목록
-                               </h3>
-                               <button 
-                                 onClick={() => setShowShoppingList(false)}
-                                 className="text-indigo-400 hover:text-indigo-700"
-                               >
-                                   <X size={18} />
-                               </button>
-                           </div>
-                           <div className="p-2 max-h-60 overflow-y-auto custom-scrollbar">
-                                {getShoppingList().length > 0 ? (
-                                    getShoppingList().map(item => (
+                           <div className="bg-indigo-50 p-4 border-b border-indigo-100 flex justify-between items-center"><h3 className="font-bold text-indigo-900 flex items-center gap-2"><ShoppingCart size={18} />장보기 목록</h3><button onClick={() => setShowShoppingList(false)} className="text-indigo-400 hover:text-indigo-700"><X size={18} /></button></div>
+                           <div className="p-2 max-h-60 overflow-y-auto custom-scrollbar">{getShoppingList().length > 0 ? getShoppingList().map(item => (
                                         <div key={item.name} className="flex items-center p-3 hover:bg-slate-50 rounded-lg transition-colors cursor-pointer" onClick={() => handleToggleShoppingItem(item.name)}>
-                                            <div className={`w-5 h-5 rounded border mr-3 flex items-center justify-center transition-colors ${selectedShoppingItems.has(item.name) ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-slate-300 bg-white'}`}>
-                                                {selectedShoppingItems.has(item.name) && <CheckSquare size={14} />}
-                                            </div>
-                                            <div className="flex-1">
-                                                <div className="font-bold text-slate-700 text-sm">{item.name}</div>
-                                                <div className="text-[10px] text-slate-400 truncate w-48">{item.recipes.join(', ')}</div>
-                                            </div>
+                                            <div className={`w-5 h-5 rounded border mr-3 flex items-center justify-center transition-colors ${selectedShoppingItems.has(item.name) ? 'bg-indigo-500 border-indigo-500 text-white' : 'border-slate-300 bg-white'}`}>{selectedShoppingItems.has(item.name) && <CheckSquare size={14} />}</div>
+                                            <div className="flex-1"><div className="font-bold text-slate-700 text-sm">{item.name}</div><div className="text-[10px] text-slate-400 truncate w-48">{item.recipes.join(', ')}</div></div>
                                         </div>
-                                    ))
-                                ) : (
-                                    <div className="text-center py-8 text-slate-400 text-sm">
-                                        부족한 재료가 없습니다! 🎉
-                                    </div>
-                                )}
-                           </div>
-                           {getShoppingList().length > 0 && (
-                               <div className="p-3 bg-slate-50 border-t border-slate-100">
-                                   <button 
-                                     onClick={handleConfirmShopping}
-                                     disabled={selectedShoppingItems.size === 0}
-                                     className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold text-sm shadow-md active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2"
-                                   >
-                                       <Package size={16} />
-                                       선택한 재료 냉장고에 넣기 ({selectedShoppingItems.size})
-                                   </button>
-                               </div>
-                           )}
+                                    )) : <div className="text-center py-8 text-slate-400 text-sm">부족한 재료가 없습니다! 🎉</div>}</div>
+                           {getShoppingList().length > 0 && <div className="p-3 bg-slate-50 border-t border-slate-100"><button onClick={handleConfirmShopping} disabled={selectedShoppingItems.size === 0} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold text-sm shadow-md active:scale-95 transition-all disabled:opacity-50 disabled:active:scale-100 flex items-center justify-center gap-2"><Package size={16} />냉장고에 넣기 ({selectedShoppingItems.size})</button></div>}
                        </div>
                    )}
-
-                   {/* Saved Recipes List */}
-                   {savedRecipes.map(recipe => (
-                        <RecipeCard 
-                            key={recipe.id} 
-                            recipe={recipe} 
-                            isSaved={true}
-                            onToggleSave={handleToggleSaveRecipe}
-                        />
-                    ))}
+                   {savedRecipes.map(recipe => <RecipeCard key={recipe.id} recipe={recipe} isSaved={true} onToggleSave={handleToggleSaveRecipe} />)}
                </div>
-            ) : (
-                <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-200">
-                    <div className="bg-pink-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-pink-300">
-                        <Heart size={32} />
-                    </div>
-                    <p className="text-slate-500 font-medium">찜한 레시피가 없습니다.</p>
-                    <p className="text-sm text-slate-400 mt-2">마음에 드는 레시피에 하트를 눌러보세요!</p>
-                </div>
-            )}
+            ) : <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-200">찜한 레시피가 없습니다.</div>}
           </div>
+        )}
+
+        {view === 'TOTAL' && (
+          <TotalListView 
+            ingredients={ingredients} 
+            basicSeasonings={basicSeasonings} 
+            onClose={() => setView('INVENTORY')} 
+          />
+        )}
+
+        {view === 'SEASONINGS' && (
+          <BasicSeasoningManager 
+            seasonings={basicSeasonings} 
+            onUpdate={updateBasicSeasonings} 
+            onClose={() => setView('INVENTORY')} 
+          />
         )}
 
         {view === 'INVENTORY' && (
-          <button
-            onClick={() => {
-              setEditingIngredient(null);
-              setIsAddModalOpen(true);
-            }}
-            // Floating Action Button moves up when Install Banner is present
-            className={`fixed right-6 w-14 h-14 bg-slate-900 rounded-full text-white shadow-xl flex items-center justify-center hover:bg-slate-800 hover:scale-105 active:scale-95 transition-all z-40 app-fab ${isInstallable ? 'bottom-24' : 'bottom-6'}`}
-          >
-            <Plus size={28} />
-          </button>
+          <button onClick={() => { setEditingIngredient(null); setIsAddModalOpen(true); }} className={`fixed right-6 w-14 h-14 bg-slate-900 rounded-full text-white shadow-xl flex items-center justify-center hover:bg-slate-800 hover:scale-105 active:scale-95 transition-all z-40 app-fab ${isInstallable ? 'bottom-24' : 'bottom-6'}`}><Plus size={28} /></button>
         )}
-
       </main>
 
-      {/* Installing Overlay Modal */}
-      {isInstalling && (
-        <div className="fixed inset-0 z-[10000] flex flex-col items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in text-white">
-            <div className="bg-white/10 p-8 rounded-full mb-6 relative">
-                 <div className="absolute inset-0 bg-indigo-500 rounded-full animate-ping opacity-20"></div>
-                 <Loader2 size={48} className="text-white animate-spin" />
-            </div>
-            <h2 className="text-2xl font-bold mb-2">앱을 설치하고 있습니다</h2>
-            <p className="text-slate-300 text-sm">잠시만 기다려주세요...</p>
-            {/* Fallback close button in case appinstalled doesn't fire */}
-            <button 
-                onClick={() => setIsInstalling(false)} 
-                className="mt-8 text-xs text-slate-400 hover:text-white underline"
-            >
-                설치 화면 닫기 (오래 걸릴 경우)
-            </button>
-        </div>
-      )}
-      
-      {/* Install App Banner (Bottom) */}
-      {isInstallable && (
-          <div className="fixed bottom-0 left-0 right-0 z-[80] bg-white border-t border-slate-100 p-4 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] animate-fade-in flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                  <div className="bg-indigo-600 p-2.5 rounded-xl text-white shadow-sm">
-                      <Smartphone size={20} />
-                  </div>
-                  <div>
-                      <h4 className="font-bold text-slate-900 text-sm">엄마의 냉장고 앱 설치</h4>
-                      <p className="text-xs text-slate-500">더 빠르고 편하게 사용하세요!</p>
-                  </div>
-              </div>
-              <button 
-                  onClick={handleInstallClick}
-                  disabled={isInstalling}
-                  className="bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-bold text-sm shadow-md active:scale-95 transition-all whitespace-nowrap disabled:opacity-70 disabled:active:scale-100"
-              >
-                  앱 설치하고 편하게 쓰기
-              </button>
-          </div>
-      )}
-
-      {/* Universal Install Guide Modal */}
-      {showInstallModal && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setShowInstallModal(false)}>
-           <div className="bg-white w-[90%] max-w-sm rounded-2xl animate-bounce-in flex flex-col max-h-[70vh] shadow-2xl overflow-hidden my-auto" onClick={(e) => e.stopPropagation()}>
-               <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
-                   <h3 className="text-xl font-bold text-slate-900">앱 설치 방법</h3>
-                   <button onClick={() => setShowInstallModal(false)} className="p-1 bg-slate-100 rounded-full hover:bg-slate-200"><X size={20}/></button>
-               </div>
-               
-               <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
-                   <div className="space-y-6 text-slate-600 text-sm">
-                       {isIOS ? (
-                           // iOS Instructions
-                           <>
-                               <div className="flex items-center gap-3">
-                                   <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">1</span>
-                                   <span>사파리(Safari) 브라우저 하단 <strong className="text-indigo-600">공유 버튼</strong>을 누르세요.</span>
-                               </div>
-                               <div className="flex items-center gap-3">
-                                   <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">2</span>
-                                   <span>메뉴를 내려서 <strong className="text-indigo-600">'홈 화면에 추가'</strong>를 선택하세요.</span>
-                               </div>
-                           </>
-                       ) : (
-                           // Android / KakaoTalk In-App Instructions
-                           <>
-                               <div className="bg-amber-50 p-3 rounded-lg text-amber-800 text-xs mb-4 flex gap-2 border border-amber-100 leading-relaxed">
-                                    <AlertTriangle size={16} className="shrink-0 mt-0.5" />
-                                    <div>카카오톡 등 앱 내부에서는 설치가 안 될 수 있습니다. <strong>Chrome(크롬)</strong>이나 <strong>삼성 인터넷</strong>으로 열어주세요.</div>
-                               </div>
-                               <div className="flex items-center gap-3">
-                                   <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">1</span>
-                                   <span>브라우저 우측 상단(또는 하단)의 <strong className="text-indigo-600">메뉴(⋮ 또는 ≡)</strong>를 누르세요.</span>
-                               </div>
-                               <div className="flex items-center gap-3">
-                                   <span className="bg-slate-100 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">2</span>
-                                   <span><strong className="text-indigo-600">'앱 설치'</strong> 또는 <strong className="text-indigo-600">'홈 화면에 추가'</strong>를 선택하세요.</span>
-                               </div>
-                           </>
-                       )}
-                       
-                       <div className="mt-4 p-3 bg-indigo-50 rounded-xl text-indigo-700 font-bold text-center">
-                           설치 후 앱처럼 편하게 사용하세요! 🎉
-                       </div>
-                   </div>
-               </div>
-           </div>
-        </div>
-      )}
-
-      {/* Custom Message Modal (Replaces window.alert) */}
-      <MessageModal 
-        isOpen={alertState.isOpen} 
-        message={alertState.message} 
-        onClose={closeAlert} 
-      />
-
-      <AddIngredientModal 
-        isOpen={isAddModalOpen} 
-        onClose={() => setIsAddModalOpen(false)} 
-        onSave={handleSaveIngredient}
-        initialData={editingIngredient}
-        defaultStorage={activeTab}
-        existingIngredients={ingredients}
-      />
-
-      {isSyncModalOpen && (
-        <DataSyncModal 
-          onClose={() => setIsSyncModalOpen(false)}
-          onImport={handleImportData}
-          onReset={handleFactoryReset}
-          ingredients={ingredients}
-          basicSeasonings={basicSeasonings}
-        />
-      )}
-
-      <ApiKeyModal 
-        isOpen={isApiKeyModalOpen} 
-        onClose={() => setIsApiKeyModalOpen(false)} 
-        onSave={handleSaveApiKey}
-        currentKey={customApiKey}
-      />
-
+      <MessageModal isOpen={alertState.isOpen} message={alertState.message} onClose={closeAlert} />
+      <AddIngredientModal isOpen={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} onSave={handleSaveIngredient} initialData={editingIngredient} defaultStorage={activeTab} existingIngredients={ingredients} />
+      {isSyncModalOpen && <DataSyncModal onClose={() => setIsSyncModalOpen(false)} onImport={handleImportData} onReset={handleFactoryReset} ingredients={ingredients} basicSeasonings={basicSeasonings} />}
+      <ApiKeyModal isOpen={isApiKeyModalOpen} onClose={() => setIsApiKeyModalOpen(false)} onSave={handleSaveApiKey} currentKey={customApiKey} />
     </div>
   );
 }

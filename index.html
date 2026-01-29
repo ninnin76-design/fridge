@@ -56,44 +56,74 @@
         animation: bounceSlow 3s infinite ease-in-out;
       }
 
-      /* Print Styles - Visibility Trick (Most Robust for Mobile) */
+      /* Print Styles - Ultra Optimized */
       @media print {
         @page {
-          margin: 1cm;
-          size: auto;
+          margin: 0.5cm;
+          size: A4;
         }
 
-        /* Hide everything by default */
-        body * {
-          visibility: hidden;
+        /* Hide everything by default except root and print-area */
+        body {
+          background: white !important;
+          color: black !important;
+        }
+        
+        #root {
+          height: auto !important;
+          overflow: visible !important;
         }
 
-        /* Show only the print area and its children */
-        .print-area, .print-area * {
-          visibility: visible;
-        }
-
-        /* Position the print area at the top-left */
-        .print-area {
-          position: absolute;
-          left: 0;
-          top: 0;
-          width: 100%;
-          margin: 0;
-          padding: 0;
-          background: white;
-          color: black;
-        }
-
-        /* Hide generic UI elements explicitly just in case */
-        .no-print, button, .app-header {
+        .no-print, 
+        button, 
+        .app-header, 
+        .app-nav, 
+        .app-fab, 
+        .app-stats,
+        header {
           display: none !important;
         }
 
-        /* Ensure content creates new pages naturally */
-        .break-inside-avoid {
+        .print-area {
+          display: block !important;
+          visibility: visible !important;
+          position: static !important;
+          width: 100% !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          background: white !important;
+        }
+
+        /* Create 2-column layout to save paper */
+        .print-columns {
+          column-count: 2;
+          column-gap: 15px;
+          column-rule: 1px solid #eee;
+        }
+
+        .print-item-group {
           break-inside: avoid;
           page-break-inside: avoid;
+          margin-bottom: 8px !important;
+        }
+
+        .print-text-tiny {
+          font-size: 10px !important;
+          line-height: 1.2 !important;
+        }
+
+        .print-title-compact {
+          font-size: 14px !important;
+          margin-bottom: 2px !important;
+          padding: 4px !important;
+        }
+
+        /* Remove background shadows/borders for ink saving */
+        * {
+          box-shadow: none !important;
+          text-shadow: none !important;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
         }
       }
     </style>
@@ -127,6 +157,6 @@
         });
       }
     </script>
-  <script type="module" src="/index.tsx"></script>
+<script type="module" src="/index.tsx"></script>
 </body>
 </html>
