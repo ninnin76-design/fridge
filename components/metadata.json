@@ -1,0 +1,5 @@
+{
+  "name": "Mom's Smart Fridge",
+  "description": "A smart inventory manager that suggests recipes based on available ingredients and automatically updates stock levels after cooking.",
+  "requestFramePermissions": []
+}
