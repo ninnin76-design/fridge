@@ -475,12 +475,13 @@ export default function App() {
       <main className="p-4">
         {view === 'INVENTORY' && (
           <>
-            {/* Redesigned Hero Dashboard Card */}
-            <div className="mb-6 bg-gradient-to-br from-[#6366f1] to-[#a855f7] rounded-[32px] p-8 text-white shadow-xl relative overflow-hidden app-stats">
+            {/* Redesigned Hero Dashboard Card - Optimized Padding for Mobile */}
+            <div className="mb-6 bg-gradient-to-br from-[#6366f1] to-[#a855f7] rounded-[28px] sm:rounded-[32px] px-5 py-6 sm:p-8 text-white shadow-xl relative overflow-hidden app-stats">
                <div className="relative z-10">
                  <div className="mb-1">
-                    <h2 className="text-2xl font-black tracking-tight leading-tight">재료가 {ingredients.length}개 있어요!</h2>
-                    <p className="text-white/80 text-sm font-medium mt-1">아이들이 배고파하나요? 지금 바로 확인해보세요.</p>
+                    <h2 className="text-xl sm:text-2xl font-black tracking-tight leading-tight">재료가 {ingredients.length}개 있어요!</h2>
+                    {/* Subtitle font size and wrap control optimized */}
+                    <p className="text-white/80 text-[10.5px] sm:text-sm font-medium mt-1 whitespace-nowrap overflow-hidden text-ellipsis">아이들이 배고파하나요? 지금 바로 확인해보세요.</p>
                  </div>
 
                  <div className="flex gap-3 mt-8">
@@ -498,7 +499,7 @@ export default function App() {
                           <Sparkles size={20} /> AI 추천
                       </button>
                       
-                      {/* API Key Access Button - Relocated to top right of AI Recommendation button and icon changed to Key */}
+                      {/* API Key Access Button */}
                       <button 
                         onClick={() => setIsApiKeyModalOpen(true)} 
                         className="absolute -top-3 -right-2 w-10 h-10 flex items-center justify-center bg-white/20 text-white hover:bg-white/30 rounded-full transition-all backdrop-blur-md shadow-lg border border-white/10"
